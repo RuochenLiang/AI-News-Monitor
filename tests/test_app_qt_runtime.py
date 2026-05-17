@@ -186,6 +186,9 @@ def _free_local_port() -> int:
 
 
 def _run_qt_script(script: str, timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    if sys.platform == "darwin" and not os.environ.get("CI") and os.environ.get("AI_NEWS_MONITOR_RUN_QT_SMOKE") != "1":
+        pytest.skip("Local macOS Qt smoke tests are opt-in to avoid native PySide crash dialogs.")
+
     try:
         result = subprocess.run(
             [sys.executable, "-c", script],

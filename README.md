@@ -16,6 +16,24 @@ This project was developed with AI assistance. AI-assisted code, documentation, 
 
 Do not commit `.env`, `config.yaml`, `user_config.yaml`, `data/`, `logs/`, SQLite databases, API keys, SMTP credentials, webhook URLs, Telegram tokens, chat IDs, or private prompts. The repository only includes `.env.example` and `config.example.yaml` placeholders.
 
+## Development Prompt Archive
+
+The markdown files in [docs/dev-history/prompts](docs/dev-history/prompts) are the given development prompts used while building and preparing this project for release. They are project history, not files required for normal installation or use.
+
+Ordered prompt archive:
+
+1. [Initial AI News Monitor prompt](docs/dev-history/prompts/01-codex_prompt_ai_news_monitor.md)
+2. [Next-phase product prompt](docs/dev-history/prompts/02-codex_next_phase_prompt.md)
+3. [Update prompt](docs/dev-history/prompts/03-codex_update_prompt.md)
+4. [Next-iteration prompt](docs/dev-history/prompts/04-ai_news_monitor_next_iteration_prompt.md)
+5. [Final target candidate prompt](docs/dev-history/prompts/05-ai_news_monitor_final_target_candidate_prompt.md)
+6. [Pre-GitHub interface stabilization prompt](docs/dev-history/prompts/06-ai_news_monitor_pre_github_interface_stabilization_prompt.md)
+7. [Source reliability and freshness prompt](docs/dev-history/prompts/07-ai_news_monitor_source_reliability_freshness_prompt.md)
+8. [GitHub upload readiness prompt](docs/dev-history/prompts/08-ai_news_monitor_github_upload_readiness_prompt.md)
+9. [E2E operational closure prompt](docs/dev-history/prompts/09-ai_news_monitor_e2e_operational_closure_prompt.md)
+10. [Final GitHub upload cleanup prompt](docs/dev-history/prompts/10-ai_news_monitor_final_github_upload_cleanup_prompt.md)
+11. [Phase verification prompt](docs/dev-history/prompts/11-phase_verification_prompt.md)
+
 ## Quick Start on macOS
 
 Install Python 3.11, then run:
@@ -209,26 +227,6 @@ If startup reports a missing dependency such as `PySide6` or `feedparser`, use t
 ```bash
 python -m pip install -r requirements.txt
 ```
-
-## Packaging
-
-macOS:
-
-```bash
-./scripts/build_macos.sh
-```
-
-Windows:
-
-```powershell
-.\scripts\build_windows.ps1
-```
-
-Release archives must include the app, `README.md`, `README.zh-CN.md`, `LICENSE`, `AI_DISCLOSURE.md`, `SOURCE_GUIDE.md`, `NOTIFICATION_GUIDE.md`, `config.example.yaml`, and `.env.example`.
-
-Use [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) before tagging a public release.
-
-Before uploading to GitHub, confirm `LICENSE`, `AI_DISCLOSURE.md`, `.env.example`, `config.example.yaml`, CI workflows, and release docs are present; do not upload `.env`, `config.yaml`, local runtime status snapshots, logs, databases, caches, or built archives as source files. Push to a private GitHub repository first, run GitHub Actions, and validate the Windows artifact before making the repository public or publishing a first release candidate such as `v0.9.0-rc1`.
 
 ## Remote Access
 

@@ -33,19 +33,20 @@ RUNTIME_ARTIFACT_PATTERNS = {
     "data",
     "logs",
 }
-HISTORICAL_PROMPTS = {
-    "ai_news_monitor_source_reliability_freshness_prompt.md",
-    "ai_news_monitor_github_upload_readiness_prompt.md",
-    "ai_news_monitor_next_iteration_prompt.md",
-    "phase_verification_prompt.md",
-    "ai_news_monitor_pre_github_interface_stabilization_prompt.md",
-    "codex_next_phase_prompt.md",
-    "ai_news_monitor_final_target_candidate_prompt.md",
-    "ai_news_monitor_e2e_operational_closure_prompt.md",
-    "codex_prompt_ai_news_monitor.md",
-    "codex_update_prompt.md",
-    "ai_news_monitor_final_github_upload_cleanup_prompt.md",
-}
+PROMPT_ARCHIVE_ORDER = (
+    "01-codex_prompt_ai_news_monitor.md",
+    "02-codex_next_phase_prompt.md",
+    "03-codex_update_prompt.md",
+    "04-ai_news_monitor_next_iteration_prompt.md",
+    "05-ai_news_monitor_final_target_candidate_prompt.md",
+    "06-ai_news_monitor_pre_github_interface_stabilization_prompt.md",
+    "07-ai_news_monitor_source_reliability_freshness_prompt.md",
+    "08-ai_news_monitor_github_upload_readiness_prompt.md",
+    "09-ai_news_monitor_e2e_operational_closure_prompt.md",
+    "10-ai_news_monitor_final_github_upload_cleanup_prompt.md",
+    "11-phase_verification_prompt.md",
+)
+HISTORICAL_PROMPTS = set(PROMPT_ARCHIVE_ORDER)
 
 
 def test_source_code_is_english_only():
@@ -74,6 +75,19 @@ def test_public_release_files_and_links():
     assert 'license = "GPL-3.0-only"' in pyproject
     assert "AI_DISCLOSURE.md" in readme
     assert "AI_DISCLOSURE.md" in readme_zh
+    development_and_packaging_heading = "## " + "".join(
+        chr(codepoint) for codepoint in [0x5F00, 0x53D1, 0x548C, 0x6253, 0x5305]
+    )
+    prompt_archive_heading = "".join(
+        chr(codepoint) for codepoint in [0x5F00, 0x53D1, 0x63D0, 0x793A, 0x8BCD, 0x6863, 0x6848]
+    )
+    assert "## Packaging" not in readme
+    assert development_and_packaging_heading not in readme_zh
+    assert "Development Prompt Archive" in readme
+    assert prompt_archive_heading in readme_zh
+    for prompt in PROMPT_ARCHIVE_ORDER:
+        assert f"docs/dev-history/prompts/{prompt}" in readme
+        assert f"docs/dev-history/prompts/{prompt}" in readme_zh
     assert "GNU GENERAL PUBLIC LICENSE" in (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert "AI assistance" in (ROOT / "AI_DISCLOSURE.md").read_text(encoding="utf-8")
     for relative in [
@@ -159,6 +173,7 @@ def test_root_directory_has_no_prompt_scratch_or_generated_artifacts():
     assert (ROOT / "docs" / "dev-history" / "README.md").is_file()
     prompt_dir = ROOT / "docs" / "dev-history" / "prompts"
     assert {path.name for path in prompt_dir.glob("*.md")} == HISTORICAL_PROMPTS
+    assert [path.name for path in sorted(prompt_dir.glob("*.md"))] == list(PROMPT_ARCHIVE_ORDER)
 
 
 def test_no_unexpected_font_assets_are_committed():
