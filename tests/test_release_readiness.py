@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from src.config import parse_config
@@ -119,7 +121,7 @@ def test_gitignore_blocks_runtime_private_files():
 
 def test_no_obvious_secrets_in_public_files():
     violations = []
-    for path in ROOT.rglob("*"):
+    for path in _release_candidate_paths():
         if not _should_scan_public_file(path):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
@@ -131,7 +133,7 @@ def test_no_obvious_secrets_in_public_files():
 
 def test_no_runtime_artifacts_in_release_file_candidates():
     violations = []
-    for path in ROOT.rglob("*"):
+    for path in _release_candidate_paths():
         if not path.is_file() or IGNORED_PARTS.intersection(path.parts):
             continue
         relative = path.relative_to(ROOT)
@@ -144,7 +146,7 @@ def test_no_runtime_artifacts_in_release_file_candidates():
 
 
 def test_root_directory_has_no_prompt_scratch_or_generated_artifacts():
-    root_files = [path for path in ROOT.iterdir() if path.is_file()]
+    root_files = [path for path in _release_candidate_paths() if path.parent == ROOT and path.is_file()]
     prompt_files = [path.name for path in root_files if "prompt" in path.name.lower() and path.suffix == ".md"]
     generated = [
         path.name
@@ -370,3 +372,24 @@ def _should_scan_public_file(path: Path) -> bool:
     if path.name == "LICENSE":
         return False
     return path.suffix in SECRET_SCAN_SUFFIXES or path.name in {".env.example", ".gitignore"}
+
+
+def _release_candidate_paths() -> list[Path]:
+    tracked = _tracked_files()
+    if tracked is not None:
+        return [path for path in tracked if path.is_file()]
+    return [path for path in ROOT.rglob("*") if path.is_file()]
+
+
+@lru_cache(maxsize=1)
+def _tracked_files() -> tuple[Path, ...] | None:
+    try:
+        result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, text=True, capture_output=True, check=False)
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    files = [item for item in result.stdout.split("\0") if item]
+    if not files:
+        return None
+    return tuple(ROOT / item for item in files)

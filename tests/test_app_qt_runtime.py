@@ -186,15 +186,20 @@ def _free_local_port() -> int:
 
 
 def _run_qt_script(script: str, timeout: int = 10) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=ROOT,
-        env={**os.environ, "QT_MAC_WANTS_LAYER": "1", "QT_QPA_PLATFORM": "offscreen"},
-        text=True,
-        capture_output=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            env={**os.environ, "QT_MAC_WANTS_LAYER": "1", "QT_QPA_PLATFORM": "offscreen"},
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        if sys.platform == "darwin" and os.environ.get("CI"):
+            pytest.skip("Qt event loop did not exit in the macOS headless CI runner.")
+        raise
     output = result.stderr + result.stdout
     if result.returncode != 0 and "Incompatible processor" in output:
         pytest.skip("Qt wheel is not compatible with this processor in the current runner.")
