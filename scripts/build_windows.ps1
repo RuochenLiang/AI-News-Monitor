@@ -1,0 +1,30 @@
+$ErrorActionPreference = "Stop"
+
+$Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+Set-Location $Root
+
+$Python = if ($env:PYTHON_BIN) { $env:PYTHON_BIN } else { "python" }
+& $Python -c "import sys; sys.exit('AI News Monitor packaging requires Python 3.11 or newer.') if sys.version_info < (3, 11) else None"
+& $Python -m pip install --upgrade pip
+& $Python -m pip install -r requirements.txt -r requirements-dev.txt
+& $Python -m pytest
+
+Remove-Item -Recurse -Force build, dist, release -ErrorAction SilentlyContinue
+Remove-Item -Force AI-News-Monitor-Windows.zip -ErrorAction SilentlyContinue
+
+& $Python -m PyInstaller --noconfirm --windowed --name "AI News Monitor" `
+  --add-data "config.example.yaml;." `
+  --add-data ".env.example;." `
+  --add-data "README.md;." `
+  --add-data "README.zh-CN.md;." `
+  --add-data "LICENSE;." `
+  --add-data "AI_DISCLOSURE.md;." `
+  --add-data "SOURCE_GUIDE.md;." `
+  --add-data "NOTIFICATION_GUIDE.md;." `
+  --add-data "locales;locales" `
+  main.py
+
+New-Item -ItemType Directory -Force release | Out-Null
+Copy-Item config.example.yaml, .env.example, README.md, README.zh-CN.md, LICENSE, AI_DISCLOSURE.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md release/
+Copy-Item -Recurse "dist/AI News Monitor" release/
+Compress-Archive -Path "release/*" -DestinationPath "AI-News-Monitor-Windows.zip" -Force

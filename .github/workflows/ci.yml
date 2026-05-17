@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff
+        run: python -m ruff check .
+      - name: Black
+        run: python -m black --check .
+      - name: Tests
+        run: python -m pytest --cov=src --cov-report=term-missing
+      - name: Compile
+        run: python -m compileall src tests
+      - name: Config validation
+        run: python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False)"
+      - name: Environment template validation
+        run: python -c "from pathlib import Path; assert 'LLM_API_KEY=replace_me' in Path('.env.example').read_text()"
+      - name: Runtime dependency check
+        run: python -c "from src.dependency_check import assert_runtime_dependencies; assert_runtime_dependencies()"
+      - name: No hard-coded secrets
+        run: python -m pytest tests/test_release_readiness.py -q

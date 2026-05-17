@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: AI-News-Monitor-macOS.zip
+          - os: windows-latest
+            artifact: AI-News-Monitor-Windows.zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: bash scripts/build_macos.sh
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\scripts\build_windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error

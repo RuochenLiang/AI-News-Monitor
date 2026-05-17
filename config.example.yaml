@@ -1,0 +1,296 @@
+app:
+  output_language: "en"
+  portable_mode: true
+  run_minimized_to_tray: false
+
+monitor:
+  default_interval_seconds: 120
+  min_relevance_score: 80
+  max_alerts_per_hour: 5
+  deduplicate_hours: 72
+  request_timeout_seconds: 20
+  log_retention_days: 14
+
+alerts:
+  # fast: timely alert with title/source/link/summary/match reason/context.
+  # full_analysis: include deeper LLM fields such as why-it-matters and scenarios.
+  default_mode: "fast"
+
+quality:
+  official_source_boost: 0.10
+  company_ir_boost: 0.10
+  multi_source_confirmation_boost: 0.15
+  independent_source_bonus: 0.05
+  same_owner_confirmation_penalty: 0.05
+  low_quality_source_penalty: 0.20
+  duplicate_rewrite_penalty: 0.10
+  event_cluster_strength_boost: 0.05
+  whitelist_boost: 0.20
+  blacklist_exclude: true
+  whitelist_sources: []
+  blacklist_sources: []
+  category_priority:
+    Official/Government: 0.05
+    Company IR: 0.04
+
+source_health:
+  fresh_within_minutes: 30
+  stale_after_minutes: 120
+  very_stale_after_minutes: 360
+  max_consecutive_failures_before_degraded: 3
+
+source_cache:
+  enabled: true
+  source_ttl_seconds: 600
+  digest_ttl_seconds: 900
+  last_known_good_enabled: true
+  last_known_good_max_age_hours: 24
+  allow_cached_alerts: false
+
+smart_polling:
+  enabled: true
+  failure_backoff_multiplier: 2.0
+  max_backoff_minutes: 60
+  reset_after_success: true
+
+fetching:
+  per_source_timeout_seconds: 8
+  overall_cycle_deadline_seconds: 40
+  max_articles_per_source: 10
+  max_candidate_articles_per_topic: 5
+
+intelligence_gaps:
+  enabled: true
+  notify_on_critical_gap: false
+  critical_gap_cooldown_minutes: 360
+
+notifications:
+  fallback_enabled: true
+  fallback_order:
+    - email
+    - telegram
+    - wecom
+    - wechat_relay
+    - qq_relay
+    - generic_webhook
+  retry_attempts: 2
+  retry_base_delay_seconds: 0.5
+
+enrichment:
+  translation_enabled: true
+  target_language: "en"
+  allowed_languages:
+    - "zh-CN"
+    - "en"
+  summary_enabled: true
+
+bias:
+  enabled: false
+  # single: add source ownership/bias context to each article.
+  # cluster: group likely-same events and add comparative context.
+  mode: "single"
+  min_cluster_size: 2
+
+local_server:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8765
+  allow_lan: false
+  sse_enabled: true
+  # /health is liveness only. /readiness reports whether monitoring can send alerts.
+  # The browser console exposes Run Once and E2E Test controls without storing secrets.
+
+llm:
+  preset: "recommended"
+  provider: "openai_compatible"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4.1-mini"
+  api_key_env: "LLM_API_KEY"
+  # Browser console diagnostics check required fields, the models endpoint
+  # when available, and /chat/completions with a small JSON test prompt.
+  # Recommended defaults are applied automatically:
+  # temperature: 0.7
+  # top_p: 1.0
+  # presence_penalty: 0.0
+  # max_tokens: 1024
+  # timeout_seconds: 30
+
+sources:
+  gdelt:
+    enabled: true
+    # Diagnostics test both production-shaped topic queries and a simple smoke query.
+    # If a query is too long, reduce topic keywords or use fewer OR-style phrases.
+  google_news_rss:
+    enabled: true
+  yahoo_finance_rss:
+    enabled: true
+    # Yahoo 429 responses are treated as api_rate_limited and enter source backoff.
+    # Keep Finance Starter enabled for additional public finance feeds.
+  public_rss:
+    enabled: true
+    urls:
+      - "https://techcrunch.com/category/artificial-intelligence/feed/"
+      - "https://www.artificialintelligence-news.com/feed/"
+      - "https://export.arxiv.org/rss/cs.AI"
+  official_rss:
+    enabled: true
+    urls: []
+  enabled_packages:
+    - "global-news-starter"
+    - "finance-starter"
+    - "official-gov-starter"
+    - "semiconductor-ai-starter"
+    - "taiwan-semiconductor-official"
+  library:
+    # The app also loads a built-in curated library with 50+ optional public RSS/Atom sources.
+    # Keep only the sources you want enabled. Public feeds/APIs only; no paywalled or login-only scraping.
+    - id: "arxiv-cs-ai"
+      name: "arXiv cs.AI"
+      enabled: true
+      kind: "rss"
+      category: "Semiconductor/AI"
+      packages:
+        - "semiconductor-ai-starter"
+      language: "en"
+      url: "https://export.arxiv.org/rss/cs.AI"
+      reliability_score: 0.82
+      source_tier: 3
+      source_role: "niche_media"
+      state_affiliated: false
+      propaganda_risk: "unknown"
+      editorial_context: "Preprint research source; verify important claims with primary or peer-reviewed sources."
+      ownership: "Cornell University"
+      bias_hint: "Preprint research feed; not peer-reviewed."
+      website_url: "https://arxiv.org/list/cs.AI/recent"
+    - id: "openai-news"
+      name: "OpenAI News"
+      enabled: true
+      kind: "rss"
+      category: "Company IR"
+      packages:
+        - "company-ir-starter"
+      language: "en"
+      url: "https://openai.com/news/rss.xml"
+      reliability_score: 0.92
+      source_tier: 1
+      source_role: "company_ir"
+      state_affiliated: false
+      propaganda_risk: "low"
+      editorial_context: "Company-owned primary source."
+      ownership: "OpenAI"
+      bias_hint: "Company-owned primary source."
+      website_url: "https://openai.com/news/"
+    - id: "google-ai-blog"
+      name: "Google AI Blog"
+      enabled: true
+      kind: "rss"
+      category: "Semiconductor/AI"
+      packages:
+        - "semiconductor-ai-starter"
+      language: "en"
+      url: "https://blog.google/technology/ai/rss/"
+      reliability_score: 0.88
+      source_tier: 1
+      source_role: "company_ir"
+      state_affiliated: false
+      propaganda_risk: "low"
+      editorial_context: "Company-owned primary source."
+      ownership: "Google"
+      bias_hint: "Company-owned primary source."
+      website_url: "https://blog.google/technology/ai/"
+  custom_sources:
+    # Add public RSS/Atom feeds only. Do not add paywalled or unauthorized sources.
+    # - name: "Example News RSS"
+    #   enabled: true
+    #   kind: "rss"
+    #   category: "Custom"
+    #   url: "https://example.com/feed.xml"
+    #   reliability_score: 0.6
+    #   source_tier: 4
+    #   source_role: "custom"
+    #   state_affiliated: false
+    #   propaganda_risk: "unknown"
+    #   editorial_context: "Optional source context shown in alerts and diagnostics"
+    #   ownership: "Publisher or owner name"
+    #   bias_hint: "Optional framing or political/business context"
+    #   default_language: "en"
+    #   website_url: "https://example.com/"
+    #   help_url: "https://example.com/rss-help"
+    []
+
+notifiers:
+  email:
+    preset: "recommended"
+    enabled: true
+    # Recommended SMTP defaults are Gmail TLS on smtp.gmail.com:587.
+    # Gmail usually requires 2-step verification and an app password.
+    # username_env/from_addr_env are the sender; to_addrs are recipients.
+    # from_addr_env is required. If it differs from username_env, confirm your SMTP provider allows that sender alias.
+    username_env: "EMAIL_USERNAME"
+    password_env: "EMAIL_APP_PASSWORD"
+    from_addr_env: "EMAIL_FROM"
+    to_addrs:
+      - "your_email@example.com"
+
+  wecom:
+    preset: "recommended"
+    enabled: false
+    webhook_url_env: "WECOM_WEBHOOK_URL"
+
+  wechat:
+    preset: "recommended"
+    enabled: false
+    provider: "serverchan"
+    webhook_url_env: "WECHAT_RELAY_WEBHOOK_URL"
+    channel_name: "WeChat Relay"
+
+  qq:
+    preset: "recommended"
+    enabled: false
+    provider: "qmsg"
+    webhook_url_env: "QQ_RELAY_WEBHOOK_URL"
+    channel_name: "QQ Relay"
+
+  telegram:
+    preset: "recommended"
+    enabled: false
+    bot_token_env: "TELEGRAM_BOT_TOKEN"
+    chat_id_env: "TELEGRAM_CHAT_ID"
+
+  generic_webhook:
+    preset: "recommended"
+    enabled: false
+    url_env: "GENERIC_WEBHOOK_URL"
+    # Recommended default is POST with the safe default JSON payload.
+
+topics:
+  - name: "Trump Taiwan business cooperation"
+    enabled: true
+    output_language: "en"
+    min_relevance_score: 80
+    cooldown_minutes: 30
+    prompt: >
+      Monitor whether Trump visits Taiwan or announces concrete commercial,
+      semiconductor, defense, AI, chip supply-chain, manufacturing, or trade
+      cooperation with Taiwan. Only alert if the news is recent, concrete,
+      market-relevant, and supported by at least one source link. Summarize the
+      event, explain why it matters, suggest related watchlist stocks, and give
+      both bullish and bearish risk paths. Output in English.
+    keywords:
+      - "Trump Taiwan"
+      - "Trump visits Taiwan"
+      - "US Taiwan semiconductor cooperation"
+      - "Taiwan defense deal"
+      - "TSMC Nvidia"
+      - "Taiwan trade deal"
+    related_stocks:
+      - "TSM"
+      - "NVDA"
+      - "ASML"
+      - "AMAT"
+      - "LRCX"
+      - "KLAC"
+      - "EWT"
+      - "LMT"
+      - "RTX"
+    official_rss_urls: []
