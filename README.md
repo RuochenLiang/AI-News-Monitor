@@ -18,21 +18,21 @@ Do not commit `.env`, `config.yaml`, `user_config.yaml`, `data/`, `logs/`, SQLit
 
 ## Development Prompt Archive
 
-The markdown files in [docs/dev-history/prompts](docs/dev-history/prompts) are the given development prompts used while building and preparing this project for release. They are project history, not files required for normal installation or use.
+The markdown file [docs/dev-history/prompt.md](docs/dev-history/prompt.md) consolidates the given development prompts used while building and preparing this project for release. It is project history, not a file required for normal installation or use.
 
 Ordered prompt archive:
 
-1. [Initial AI News Monitor prompt](docs/dev-history/prompts/01-codex_prompt_ai_news_monitor.md)
-2. [Next-phase product prompt](docs/dev-history/prompts/02-codex_next_phase_prompt.md)
-3. [Update prompt](docs/dev-history/prompts/03-codex_update_prompt.md)
-4. [Next-iteration prompt](docs/dev-history/prompts/04-ai_news_monitor_next_iteration_prompt.md)
-5. [Final target candidate prompt](docs/dev-history/prompts/05-ai_news_monitor_final_target_candidate_prompt.md)
-6. [Pre-GitHub interface stabilization prompt](docs/dev-history/prompts/06-ai_news_monitor_pre_github_interface_stabilization_prompt.md)
-7. [Source reliability and freshness prompt](docs/dev-history/prompts/07-ai_news_monitor_source_reliability_freshness_prompt.md)
-8. [GitHub upload readiness prompt](docs/dev-history/prompts/08-ai_news_monitor_github_upload_readiness_prompt.md)
-9. [E2E operational closure prompt](docs/dev-history/prompts/09-ai_news_monitor_e2e_operational_closure_prompt.md)
-10. [Final GitHub upload cleanup prompt](docs/dev-history/prompts/10-ai_news_monitor_final_github_upload_cleanup_prompt.md)
-11. [Phase verification prompt](docs/dev-history/prompts/11-phase_verification_prompt.md)
+1. [Initial AI News Monitor prompt](docs/dev-history/prompt.md#01-initial-ai-news-monitor-prompt)
+2. [Next-phase product prompt](docs/dev-history/prompt.md#02-next-phase-product-prompt)
+3. [Update prompt](docs/dev-history/prompt.md#03-update-prompt)
+4. [Next-iteration prompt](docs/dev-history/prompt.md#04-next-iteration-prompt)
+5. [Final target candidate prompt](docs/dev-history/prompt.md#05-final-target-candidate-prompt)
+6. [Pre-GitHub interface stabilization prompt](docs/dev-history/prompt.md#06-pre-github-interface-stabilization-prompt)
+7. [Source reliability and freshness prompt](docs/dev-history/prompt.md#07-source-reliability-and-freshness-prompt)
+8. [GitHub upload readiness prompt](docs/dev-history/prompt.md#08-github-upload-readiness-prompt)
+9. [E2E operational closure prompt](docs/dev-history/prompt.md#09-e2e-operational-closure-prompt)
+10. [Final GitHub upload cleanup prompt](docs/dev-history/prompt.md#10-final-github-upload-cleanup-prompt)
+11. [Phase verification prompt](docs/dev-history/prompt.md#11-phase-verification-prompt)
 
 ## Quick Start on macOS
 

@@ -46,7 +46,19 @@ PROMPT_ARCHIVE_ORDER = (
     "10-ai_news_monitor_final_github_upload_cleanup_prompt.md",
     "11-phase_verification_prompt.md",
 )
-HISTORICAL_PROMPTS = set(PROMPT_ARCHIVE_ORDER)
+PROMPT_ARCHIVE_ANCHORS = (
+    "01-initial-ai-news-monitor-prompt",
+    "02-next-phase-product-prompt",
+    "03-update-prompt",
+    "04-next-iteration-prompt",
+    "05-final-target-candidate-prompt",
+    "06-pre-github-interface-stabilization-prompt",
+    "07-source-reliability-and-freshness-prompt",
+    "08-github-upload-readiness-prompt",
+    "09-e2e-operational-closure-prompt",
+    "10-final-github-upload-cleanup-prompt",
+    "11-phase-verification-prompt",
+)
 
 
 def test_source_code_is_english_only():
@@ -85,9 +97,9 @@ def test_public_release_files_and_links():
     assert development_and_packaging_heading not in readme_zh
     assert "Development Prompt Archive" in readme
     assert prompt_archive_heading in readme_zh
-    for prompt in PROMPT_ARCHIVE_ORDER:
-        assert f"docs/dev-history/prompts/{prompt}" in readme
-        assert f"docs/dev-history/prompts/{prompt}" in readme_zh
+    for anchor in PROMPT_ARCHIVE_ANCHORS:
+        assert f"docs/dev-history/prompt.md#{anchor}" in readme
+        assert f"docs/dev-history/prompt.md#{anchor}" in readme_zh
     assert "GNU GENERAL PUBLIC LICENSE" in (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert "AI assistance" in (ROOT / "AI_DISCLOSURE.md").read_text(encoding="utf-8")
     for relative in [
@@ -171,9 +183,13 @@ def test_root_directory_has_no_prompt_scratch_or_generated_artifacts():
     assert prompt_files == []
     assert generated == []
     assert (ROOT / "docs" / "dev-history" / "README.md").is_file()
-    prompt_dir = ROOT / "docs" / "dev-history" / "prompts"
-    assert {path.name for path in prompt_dir.glob("*.md")} == HISTORICAL_PROMPTS
-    assert [path.name for path in sorted(prompt_dir.glob("*.md"))] == list(PROMPT_ARCHIVE_ORDER)
+    prompt_file = ROOT / "docs" / "dev-history" / "prompt.md"
+    prompt_text = prompt_file.read_text(encoding="utf-8")
+    assert prompt_file.is_file()
+    for index, prompt in enumerate(PROMPT_ARCHIVE_ORDER, 1):
+        assert f"{index:02d}." in prompt_text
+        assert f"Source file before consolidation: `{prompt}`" in prompt_text
+    assert not list((ROOT / "docs" / "dev-history" / "prompts").glob("*.md"))
 
 
 def test_no_unexpected_font_assets_are_committed():
