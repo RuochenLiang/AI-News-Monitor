@@ -12,10 +12,6 @@ AI News Monitor is released under `GPL-3.0-only`. See [LICENSE](LICENSE).
 
 This project was developed with AI assistance. AI-assisted code, documentation, and tests should be reviewed, tested, and maintained by the project owner or contributors before release. See [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
 
-## Security
-
-Do not commit `.env`, `config.yaml`, `user_config.yaml`, `data/`, `logs/`, SQLite databases, API keys, SMTP credentials, webhook URLs, Telegram tokens, chat IDs, or private prompts. The repository only includes `.env.example` and `config.example.yaml` placeholders.
-
 ## Development Prompt Archive
 
 The markdown file [docs/dev-history/prompt.md](docs/dev-history/prompt.md) consolidates the given development prompts used while building and preparing this project for release. It is project history, not a file required for normal installation or use.
