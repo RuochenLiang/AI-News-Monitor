@@ -170,6 +170,7 @@ class LLMSettings:
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4.1-mini"
     api_key_env: str = "LLM_API_KEY"
+    structured_outputs: bool = True
     temperature: float = 0.7
     top_p: float = 1.0
     presence_penalty: float = 0.0

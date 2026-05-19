@@ -124,6 +124,8 @@ Regular users usually need only:
 
 The API key is stored locally in `.env` as `LLM_API_KEY`, not in source code.
 
+The app prefers API-enforced JSON Schema Structured Outputs for article analysis and translation when the configured OpenAI-compatible provider supports it. Providers that only support `response_format: {"type": "json_object"}` automatically fall back to JSON mode, and the app still performs local parsing and validation either way.
+
 If the LLM test fails:
 
 - `invalid_api_key`: create or copy a fresh key from the provider console.

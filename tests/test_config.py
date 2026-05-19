@@ -92,9 +92,27 @@ def test_recommended_presets_apply_and_prune_optional_values():
     assert config.llm.top_p == 1.0
     assert config.llm.presence_penalty == 0.0
     assert config.llm.max_tokens == 1024
+    assert config.llm.structured_outputs is True
     saved = config_to_dict(config)
     assert "temperature" not in saved["llm"]
     assert "smtp_host" not in saved["notifiers"]["email"]
+
+
+def test_llm_structured_outputs_can_be_disabled():
+    config = parse_config(
+        {
+            "llm": {
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-4.1-mini",
+                "api_key_env": "LLM_API_KEY",
+                "structured_outputs": False,
+            },
+            "topics": [{"name": "T", "enabled": True, "prompt": "P", "keywords": ["k"]}],
+        }
+    )
+
+    assert config.llm.structured_outputs is False
 
 
 def test_custom_news_source_validation_rejects_duplicates():

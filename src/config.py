@@ -434,6 +434,7 @@ def _parse_llm(data: dict[str, Any]) -> LLMSettings:
         base_url=str(data.get("base_url", "https://api.openai.com/v1")),
         model=str(data.get("model", "gpt-4.1-mini")),
         api_key_env=str(data.get("api_key_env", "LLM_API_KEY")),
+        structured_outputs=bool(data.get("structured_outputs", True)),
         temperature=float(data.get("temperature", defaults.get("temperature", 0.7))),
         top_p=float(data.get("top_p", defaults.get("top_p", 1.0))),
         presence_penalty=float(data.get("presence_penalty", defaults.get("presence_penalty", 0.0))),

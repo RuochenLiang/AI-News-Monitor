@@ -106,6 +106,9 @@ llm:
   base_url: "https://api.openai.com/v1"
   model: "gpt-4.1-mini"
   api_key_env: "LLM_API_KEY"
+  # Prefer API-enforced JSON Schema Structured Outputs when supported.
+  # The app falls back to JSON object mode for compatible providers that do not support it.
+  structured_outputs: true
   # Browser console diagnostics check required fields, the models endpoint
   # when available, and /chat/completions with a small JSON test prompt.
   # Recommended defaults are applied automatically:

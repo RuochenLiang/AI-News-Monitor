@@ -37,6 +37,7 @@ class LLMClient:
         self.settings = settings
         self.api_key = api_key if api_key is not None else get_env_secret(settings.api_key_env)
         self.client = client
+        self._structured_outputs_supported: bool | None = None
 
     def test(self) -> bool:
         diagnostic = self.diagnose()
@@ -184,7 +185,7 @@ class LLMClient:
             "top_p": self.settings.top_p,
             "presence_penalty": self.settings.presence_penalty,
             **_token_limit_payload(self.settings.model, 64),
-            "response_format": {"type": "json_object"},
+            "response_format": _json_object_response_format(),
         }
 
     def analyze_article(self, topic: TopicConfig, article: Article) -> LLMAnalysis:
@@ -193,7 +194,11 @@ class LLMClient:
         messages = self._build_messages(topic, article)
         content = ""
         try:
-            content = self._chat(messages)
+            content = self._chat(
+                messages,
+                response_schema=_analysis_response_schema(),
+                response_name="ai_news_monitor_analysis",
+            )
             return parse_llm_analysis(content)
         except (LLMError, ValueError) as first_error:
             logger.warning("LLM returned invalid JSON, trying repair once: %s", first_error)
@@ -210,7 +215,11 @@ class LLMClient:
                     ),
                 },
             ]
-            content = self._chat(repair_messages)
+            content = self._chat(
+                repair_messages,
+                response_schema=_analysis_response_schema(),
+                response_name="ai_news_monitor_analysis_repair",
+            )
             return parse_llm_analysis(content)
 
     def translate_and_summarize(self, article: Article, target_language: str) -> dict[str, str]:
@@ -239,7 +248,14 @@ class LLMClient:
                 ),
             },
         ]
-        data = _json_from_text(self._chat(messages, max_tokens=512))
+        data = _json_from_text(
+            self._chat(
+                messages,
+                max_tokens=512,
+                response_schema=_translation_response_schema(),
+                response_name="ai_news_monitor_translation",
+            )
+        )
         return {key: str(data.get(key, "")) for key in schema}
 
     def _build_messages(self, topic: TopicConfig, article: Article) -> list[dict[str, str]]:
@@ -259,6 +275,9 @@ class LLMClient:
             "ranking_score": article.ranking_score,
             "bias_context": (article.raw or {}).get("bias_summary") if article.raw else None,
         }
+        # Structured Outputs enforces this shape through response_format.json_schema
+        # when the configured provider supports it. The compact schema prompt remains
+        # as compatibility guidance for JSON-object fallback providers.
         schema = {
             "relevance_score": 0,
             "is_actionable_alert": False,
@@ -300,20 +319,42 @@ class LLMClient:
             {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
         ]
 
-    def _chat(self, messages: list[dict[str, str]], max_tokens: int | None = None) -> str:
-        body = {
-            "model": self.settings.model,
-            "messages": messages,
-            "temperature": self.settings.temperature,
-            "top_p": self.settings.top_p,
-            "presence_penalty": self.settings.presence_penalty,
-            **_token_limit_payload(self.settings.model, max_tokens or self.settings.max_tokens),
-            "response_format": {"type": "json_object"},
-        }
+    def _chat(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int | None = None,
+        response_schema: dict[str, Any] | None = None,
+        response_name: str = "ai_news_monitor_response",
+    ) -> str:
+        body = self._chat_body(
+            messages,
+            max_tokens=max_tokens,
+            response_format=_json_object_response_format(),
+        )
+        use_structured_outputs = (
+            response_schema is not None
+            and self.settings.structured_outputs
+            and self._structured_outputs_supported is not False
+        )
+        if use_structured_outputs:
+            body["response_format"] = _structured_response_format(response_name, response_schema)
         close_client = self.client is None
         client = self.client or httpx.Client(timeout=self.settings.timeout_seconds)
         try:
-            response = request_with_retries(client, "POST", self._chat_url(), headers=self._headers(), json=body)
+            try:
+                response = self._send_chat_request(client, body, retries=0 if use_structured_outputs else 2)
+            except httpx.HTTPError as exc:
+                if not use_structured_outputs or not _structured_outputs_unsupported(exc):
+                    raise
+                logger.warning(
+                    "LLM provider rejected JSON Schema structured outputs; falling back to JSON object mode."
+                )
+                self._structured_outputs_supported = False
+                body["response_format"] = _json_object_response_format()
+                response = self._send_chat_request(client, body)
+            else:
+                if use_structured_outputs:
+                    self._structured_outputs_supported = True
             payload = response.json()
         except httpx.TimeoutException as exc:
             raise LLMError("LLM request timed out.") from exc
@@ -327,6 +368,33 @@ class LLMClient:
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError("LLM response did not contain chat content.") from exc
 
+    def _chat_body(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int | None = None,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "model": self.settings.model,
+            "messages": messages,
+            "temperature": self.settings.temperature,
+            "top_p": self.settings.top_p,
+            "presence_penalty": self.settings.presence_penalty,
+            **_token_limit_payload(self.settings.model, max_tokens or self.settings.max_tokens),
+            "response_format": response_format,
+        }
+
+    def _send_chat_request(self, client: httpx.Client, body: dict[str, Any], *, retries: int = 2) -> httpx.Response:
+        return request_with_retries(
+            client,
+            "POST",
+            self._chat_url(),
+            headers=self._headers(),
+            json=body,
+            retries=retries,
+        )
+
 
 def _latency_ms(started: float) -> int:
     return int((perf_counter() - started) * 1000)
@@ -336,6 +404,112 @@ def _token_limit_payload(model: str, max_tokens: int) -> dict[str, int]:
     if model.strip().casefold().startswith("gpt-5"):
         return {"max_completion_tokens": max_tokens}
     return {"max_tokens": max_tokens}
+
+
+def _analysis_response_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "relevance_score",
+            "is_actionable_alert",
+            "event_type",
+            "summary",
+            "why_it_matters",
+            "market_watch_suggestions",
+            "bullish_path",
+            "bearish_path",
+            "risk_notes",
+            "uncertainty_notes",
+            "source_reliability",
+            "recommended_user_action",
+            "notification_title",
+        ],
+        "properties": {
+            "relevance_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "How relevant the article is to the configured topic.",
+            },
+            "is_actionable_alert": {
+                "type": "boolean",
+                "description": "Whether this article should become a user-facing alert.",
+            },
+            "event_type": {"type": "string"},
+            "summary": {"type": "string", "description": "Source-grounded concise article summary."},
+            "why_it_matters": {"type": "string"},
+            "market_watch_suggestions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "ticker",
+                        "name_or_theme",
+                        "possible_direction",
+                        "reason",
+                        "confidence",
+                    ],
+                    "properties": {
+                        "ticker": {"type": "string"},
+                        "name_or_theme": {"type": "string"},
+                        "possible_direction": {"type": "string", "enum": sorted(VALID_DIRECTIONS)},
+                        "reason": {"type": "string"},
+                        "confidence": {"type": "string", "enum": sorted(VALID_CONFIDENCE)},
+                    },
+                },
+            },
+            "bullish_path": {"type": "string"},
+            "bearish_path": {"type": "string"},
+            "risk_notes": {"type": "string"},
+            "uncertainty_notes": {"type": "string"},
+            "source_reliability": {"type": "string", "enum": sorted(VALID_RELIABILITY)},
+            "recommended_user_action": {"type": "string", "enum": sorted(VALID_ACTIONS)},
+            "notification_title": {"type": "string"},
+        },
+    }
+
+
+def _translation_response_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["translated_title", "translated_snippet", "summary"],
+        "properties": {
+            "translated_title": {"type": "string"},
+            "translated_snippet": {"type": "string"},
+            "summary": {"type": "string"},
+        },
+    }
+
+
+def _structured_response_format(name: str, schema: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": name,
+            "strict": True,
+            "schema": schema,
+        },
+    }
+
+
+def _json_object_response_format() -> dict[str, str]:
+    return {"type": "json_object"}
+
+
+def _structured_outputs_unsupported(exc: httpx.HTTPError) -> bool:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return False
+    if exc.response.status_code not in {400, 422}:
+        return False
+    detail = exc.response.text.casefold()
+    unsupported_markers = ("unsupported", "not supported", "not support", "invalid", "unknown", "unrecognized")
+    structured_markers = ("json_schema", "response_format", "schema", "strict")
+    return any(marker in detail for marker in unsupported_markers) and any(
+        marker in detail for marker in structured_markers
+    )
 
 
 def _llm_error_message(category: str) -> str:

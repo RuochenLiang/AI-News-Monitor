@@ -118,6 +118,8 @@ Fetched 441 -> Language 390 -> Keyword 12 -> New 3 -> LLM 2 -> Alerts 0
 - 模型名，例如 `gpt-4.1-mini`
 - 从提供商控制台复制的 API Key
 
+文章分析和翻译默认优先使用 API 强制的 JSON Schema Structured Outputs。若当前 OpenAI-compatible 服务商只支持 `response_format: {"type": "json_object"}`，应用会自动回退到 JSON mode，并且仍会在本地继续解析和校验输出。
+
 如果 LLM 测试失败：`invalid_api_key` 表示需要重新复制或生成 Key；`model_not_found` 表示模型名不匹配；`base_url_unreachable`/`network_unreachable` 通常与 URL、网络、VPN、代理或防火墙有关；`unsupported_model_api` 表示该 endpoint 不兼容 OpenAI 风格的 `/chat/completions`。
 
 ## 告警模式
