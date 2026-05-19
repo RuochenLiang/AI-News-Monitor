@@ -12,8 +12,8 @@ monitor:
   log_retention_days: 14
 
 alerts:
-  # fast: timely alert with title/source/link/summary/match reason/context.
-  # full_analysis: include deeper LLM fields such as why-it-matters and scenarios.
+  # fast: timely alert with title/source/link/summary/suggestions/action/match reason/context.
+  # full_analysis: add deeper LLM fields such as why-it-matters and scenarios.
   default_mode: "fast"
 
 quality:

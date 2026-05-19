@@ -10,13 +10,15 @@ AI News Monitor stores alerts locally first, then sends notifications through en
 - Source and published time
 - Original URL
 - Short summary
+- Market-watch suggestions from the LLM response
+- Recommended user action such as watch only, research further, or urgent review
 - Match reason and matched keywords/entities
 - Source reliability/context
 - Cluster ID when available
 - Multi-source confirmation context when available
 - Why the item was selected
 
-`alerts.default_mode: "full_analysis"` also includes deeper LLM fields such as why-it-matters, market-watch suggestions, bullish/bearish scenarios, risk notes, and uncertainty notes.
+`alerts.default_mode: "full_analysis"` also includes deeper LLM fields such as why-it-matters, bullish/bearish scenarios, risk notes, and uncertainty notes.
 
 ## Fallback Routing
 

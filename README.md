@@ -139,12 +139,14 @@ Fast Alert is the default. It includes:
 - Translated title when needed
 - Source and published time
 - Short summary
+- Market-watch suggestions from the LLM response
+- Recommended user action such as watch only, research further, or urgent review
 - Match reason and keywords/entities
 - Source context and reliability
 - Multi-source event cluster context
 - Quality and relevance explanation
 
-Full Analysis is optional and includes deeper LLM fields such as why-it-matters, scenarios, risk notes, and uncertainty.
+Full Analysis is optional and adds deeper LLM fields such as why-it-matters, scenarios, risk notes, and uncertainty.
 
 ## Source Library
 

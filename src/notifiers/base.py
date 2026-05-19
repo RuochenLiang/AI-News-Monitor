@@ -26,13 +26,7 @@ def format_alert_text(alert: Alert, language: str | None = None, mode: str | Non
     mode = mode or alert.mode
     if mode == "fast":
         return _format_fast_alert(alert, language)
-    suggestions = (
-        "\n".join(
-            f"- {item.ticker or item.name_or_theme}: {item.possible_direction}, {item.confidence}, {item.reason}"
-            for item in analysis.market_watch_suggestions
-        )
-        or f"- {text('alert.none', language)}"
-    )
+    suggestions = _format_market_watch_suggestions(alert, language)
     published = article.published_at.isoformat() if article.published_at else text("alert.not_available", language)
     return (
         f"{alert.title}\n\n"
@@ -45,6 +39,7 @@ def format_alert_text(alert: Alert, language: str | None = None, mode: str | Non
         f"{text('alert.summary', language)}:\n{analysis.summary}\n\n"
         f"{text('alert.why_it_matters', language)}:\n{analysis.why_it_matters}\n\n"
         f"{text('alert.market_watch', language)}:\n{suggestions}\n\n"
+        f"{text('alert.recommended_user_action', language)}: {_format_user_action(analysis.recommended_user_action)}\n\n"
         f"{text('alert.bullish', language)}:\n{analysis.bullish_path}\n\n"
         f"{text('alert.bearish', language)}:\n{analysis.bearish_path}\n\n"
         f"{text('alert.risk_notes', language)}:\n{analysis.risk_notes}\n\n"
@@ -64,6 +59,7 @@ def _format_fast_alert(alert: Alert, language: str | None = None) -> str:
     published = article.published_at.isoformat() if article.published_at else text("alert.not_available", language)
     translated_title = article.translated_title or ""
     summary = article.short_summary or analysis.summary
+    suggestions = _format_market_watch_suggestions(alert, language)
     keywords = (
         ", ".join(article.matched_keywords) if article.matched_keywords else text("alert.not_available", language)
     )
@@ -96,6 +92,8 @@ def _format_fast_alert(alert: Alert, language: str | None = None) -> str:
         f"{text('alert.published_time', language)}: {published}\n"
         f"{text('alert.original_url', language)}: {article.url}\n"
         f"{text('alert.short_summary', language)}: {summary}\n"
+        f"{text('alert.market_watch', language)}:\n{suggestions}\n"
+        f"{text('alert.recommended_user_action', language)}: {_format_user_action(analysis.recommended_user_action)}\n"
         f"{text('alert.match_reason', language)}: {article.match_reason or reason}\n"
         f"{text('alert.keywords', language)}: {keywords}\n"
         f"{text('alert.source_context', language)}: {context or text('alert.not_available', language)}\n"
@@ -104,3 +102,17 @@ def _format_fast_alert(alert: Alert, language: str | None = None) -> str:
         f"{text('alert.why_selected', language)}: {reason}\n\n"
         f"{text('disclaimer', language)}"
     )
+
+
+def _format_market_watch_suggestions(alert: Alert, language: str | None = None) -> str:
+    return (
+        "\n".join(
+            f"- {item.ticker or item.name_or_theme}: {item.possible_direction}, {item.confidence}, {item.reason}"
+            for item in alert.analysis.market_watch_suggestions
+        )
+        or f"- {text('alert.none', language)}"
+    )
+
+
+def _format_user_action(action: str) -> str:
+    return action.replace("_", " ")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from src.models import EmailSettings, GenericWebhookSettings
+from src.models import EmailSettings, GenericWebhookSettings, NotifierSettings
+from src.monitor import build_notifiers
 from src.notifiers.base import DISCLAIMER, format_alert_text
 from src.notifiers.email_notifier import EmailNotifier
 from src.notifiers.generic_webhook_notifier import GenericWebhookNotifier
@@ -19,6 +20,28 @@ def test_email_payload_formatting_without_sending(monkeypatch):
     assert "App Password" not in message.get_content()
 
 
+def test_email_alert_contains_summary_suggestions_action_and_recipient(monkeypatch):
+    monkeypatch.setenv("EMAIL_USERNAME", "sender@example.com")
+    monkeypatch.setenv("EMAIL_FROM", "from@example.com")
+    alert = sample_alert()
+    alert.mode = "fast"
+
+    message = EmailNotifier(EmailSettings(enabled=True, to_addrs=["enabled@example.com"])).build_message(alert)
+    body = message.get_content()
+
+    assert message["To"] == "enabled@example.com"
+    assert "Short summary: This is an AI News Monitor test notification." in body
+    assert "Market-watch suggestions:" in body
+    assert "TEST: unclear, low, Test notifications are not real market events." in body
+    assert "Recommended user action: watch only" in body
+
+
+def test_enabled_email_settings_create_email_notifier():
+    notifiers = build_notifiers(NotifierSettings(email=EmailSettings(enabled=True, to_addrs=["enabled@example.com"])))
+
+    assert [notifier.name for notifier in notifiers] == ["Email"]
+
+
 def test_generic_webhook_default_payload():
     alert = sample_alert()
     notifier = GenericWebhookNotifier(GenericWebhookSettings(enabled=True))
@@ -34,6 +57,7 @@ def test_alert_text_contains_required_sections():
         "Relevance score:",
         "Original links:",
         "Market-watch suggestions:",
+        "Recommended user action:",
         "Bullish scenario:",
         "Bearish scenario:",
         "Risk notes:",
