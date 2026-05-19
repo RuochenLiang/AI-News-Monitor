@@ -36,6 +36,49 @@ def test_email_alert_contains_summary_suggestions_action_and_recipient(monkeypat
     assert "Recommended user action: watch only" in body
 
 
+def test_email_send_uses_enabled_recipient_and_alert_body(monkeypatch):
+    sent_messages = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            self.host = host
+            self.port = port
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def starttls(self):
+            return None
+
+        def login(self, username, password):
+            assert username == "sender@example.com"
+            assert password == "app-password"
+
+        def send_message(self, message):
+            sent_messages.append(message)
+
+    monkeypatch.setenv("EMAIL_USERNAME", "sender@example.com")
+    monkeypatch.setenv("EMAIL_APP_PASSWORD", "app-password")
+    monkeypatch.setenv("EMAIL_FROM", "sender@example.com")
+    monkeypatch.setattr("src.notifiers.email_notifier.smtplib.SMTP", FakeSMTP)
+    alert = sample_alert()
+    alert.mode = "fast"
+
+    result = EmailNotifier(EmailSettings(enabled=True, to_addrs=["enabled@example.com"])).send(alert)
+
+    assert result.success
+    assert len(sent_messages) == 1
+    assert sent_messages[0]["To"] == "enabled@example.com"
+    body = sent_messages[0].get_content()
+    assert "Short summary: This is an AI News Monitor test notification." in body
+    assert "Market-watch suggestions:" in body
+    assert "Recommended user action: watch only" in body
+
+
 def test_enabled_email_settings_create_email_notifier():
     notifiers = build_notifiers(NotifierSettings(email=EmailSettings(enabled=True, to_addrs=["enabled@example.com"])))
 
