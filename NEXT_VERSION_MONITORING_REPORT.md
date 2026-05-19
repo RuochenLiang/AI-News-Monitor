@@ -1,12 +1,12 @@
 # Next Version Monitoring Report
 
-Generated: 2026-05-17 after GitHub upload readiness finalization
+Generated: 2026-05-19 after GitHub upload readiness verification
 
 ## Executive Summary
 
 The previously observed runtime issues have been converted into release-ready diagnostics, tests, and documentation. The project now has Run Once, E2E Test Mode, Pipeline Funnel, `/readiness`, source reliability/freshness/gaps, source package warnings, concise browser console summaries, GDELT/Yahoo failure classification, and Email From Address readiness validation.
 
-The repository is intended to be safe for public GitHub upload after the final verification suite passed locally on 2026-05-17. Real credentials and runtime data are intentionally excluded.
+The repository is intended to be safe for public GitHub upload after the final verification suite passed locally on 2026-05-19. Real credentials and runtime data are intentionally excluded.
 
 ## Current Operational Model
 
@@ -85,10 +85,11 @@ Current state: primary cards show concise summaries, raw details are behind expa
 - GPL-3.0-only `LICENSE` exists.
 - README language switching exists.
 - AI disclosure exists and is referenced.
-- Public docs exist: README, Chinese README, source guide, notification guide, install, architecture, roadmap, release checklist, contributing, security, changelog, code of conduct.
+- Public docs exist: README, Chinese README, source guide, notification guide, install, architecture, roadmap, release checklist, contributing, changelog, code of conduct.
 - `.gitignore` excludes secrets, runtime files, caches, logs, databases, builds, specs, and archives.
 - Secret and runtime artifact scans are covered by release-readiness tests.
 - Historical development prompts live under `docs/dev-history/prompts/` instead of cluttering the repository root.
+- Prompt archive links point at standalone numbered files, with `docs/dev-history/prompt.md` retained as a consolidated reference.
 - Generated local artifacts such as caches, `.DS_Store`, `.coverage`, and zip archives are not part of the upload candidate.
 - Dependency/bootstrap helper gives missing dependency guidance.
 - macOS Qt startup has a clean plugin-cache fallback for copied/quarantined PySide6 plugin files.
@@ -98,10 +99,9 @@ Current state: primary cards show concise summaries, raw details are behind expa
 
 - Ruff passed.
 - Black check passed.
-- Release-readiness tests: 17 passed.
-- Target E2E/source reliability/interface/config tests: 45 passed.
-- Full pytest: 102 passed.
-- Coverage run: 102 passed, total coverage 66%.
+- Targeted source/E2E/release-readiness tests: 34 passed, 3 skipped.
+- Full pytest: 89 passed, 14 skipped.
+- Coverage run: 89 passed, 14 skipped, total coverage 54%.
 - Compileall passed.
 - `config.example.yaml` parse passed.
 - Runtime dependency check passed.

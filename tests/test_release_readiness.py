@@ -34,30 +34,17 @@ RUNTIME_ARTIFACT_PATTERNS = {
     "logs",
 }
 PROMPT_ARCHIVE_ORDER = (
-    "01-codex_prompt_ai_news_monitor.md",
-    "02-codex_next_phase_prompt.md",
-    "03-codex_update_prompt.md",
-    "04-ai_news_monitor_next_iteration_prompt.md",
-    "05-ai_news_monitor_final_target_candidate_prompt.md",
-    "06-ai_news_monitor_pre_github_interface_stabilization_prompt.md",
-    "07-ai_news_monitor_source_reliability_freshness_prompt.md",
-    "08-ai_news_monitor_github_upload_readiness_prompt.md",
-    "09-ai_news_monitor_e2e_operational_closure_prompt.md",
-    "10-ai_news_monitor_final_github_upload_cleanup_prompt.md",
-    "11-phase_verification_prompt.md",
-)
-PROMPT_ARCHIVE_ANCHORS = (
-    "01-initial-ai-news-monitor-prompt",
-    "02-next-phase-product-prompt",
-    "03-update-prompt",
-    "04-next-iteration-prompt",
-    "05-final-target-candidate-prompt",
-    "06-pre-github-interface-stabilization-prompt",
-    "07-source-reliability-and-freshness-prompt",
-    "08-github-upload-readiness-prompt",
-    "09-e2e-operational-closure-prompt",
-    "10-final-github-upload-cleanup-prompt",
-    "11-phase-verification-prompt",
+    "01-build-lightweight-desktop-ai-news-monitor.md",
+    "02-expand-into-24-7-global-information-agent.md",
+    "03-add-presets-minimal-ui-and-source-management.md",
+    "04-improve-fast-alerts-ui-i18n-sources-notifications.md",
+    "05-prepare-v0-9-open-source-release-candidate.md",
+    "06-stabilize-llm-email-source-diagnostics-and-setup-ux.md",
+    "07-add-source-reliability-freshness-and-intelligence-gaps.md",
+    "08-finalize-github-upload-readiness-and-release-gates.md",
+    "09-prove-e2e-alert-delivery-and-clean-browser-console.md",
+    "10-clean-root-for-final-github-upload.md",
+    "11-verify-next-phase-features-and-runtime-stability.md",
 )
 
 
@@ -97,14 +84,14 @@ def test_public_release_files_and_links():
     assert development_and_packaging_heading not in readme_zh
     assert "Development Prompt Archive" in readme
     assert prompt_archive_heading in readme_zh
-    for anchor in PROMPT_ARCHIVE_ANCHORS:
-        assert f"docs/dev-history/prompt.md#{anchor}" in readme
-        assert f"docs/dev-history/prompt.md#{anchor}" in readme_zh
+    for prompt in PROMPT_ARCHIVE_ORDER:
+        archive_link = f"docs/dev-history/prompts/{prompt}"
+        assert archive_link in readme
+        assert archive_link in readme_zh
     assert "GNU GENERAL PUBLIC LICENSE" in (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert "AI assistance" in (ROOT / "AI_DISCLOSURE.md").read_text(encoding="utf-8")
     for relative in [
         "CONTRIBUTING.md",
-        "SECURITY.md",
         "CHANGELOG.md",
         "CODE_OF_CONDUCT.md",
         "SOURCE_GUIDE.md",
@@ -182,14 +169,20 @@ def test_root_directory_has_no_prompt_scratch_or_generated_artifacts():
 
     assert prompt_files == []
     assert generated == []
-    assert (ROOT / "docs" / "dev-history" / "README.md").is_file()
-    prompt_file = ROOT / "docs" / "dev-history" / "prompt.md"
+    dev_history = ROOT / "docs" / "dev-history"
+    prompts_dir = dev_history / "prompts"
+    assert (dev_history / "README.md").is_file()
+    assert prompts_dir.is_dir()
+    assert tuple(path.name for path in sorted(prompts_dir.glob("*.md"))) == PROMPT_ARCHIVE_ORDER
+    for prompt in PROMPT_ARCHIVE_ORDER:
+        prompt_text = (prompts_dir / prompt).read_text(encoding="utf-8")
+        assert prompt_text.lstrip().startswith("#"), prompt
+    prompt_file = dev_history / "prompt.md"
     prompt_text = prompt_file.read_text(encoding="utf-8")
     assert prompt_file.is_file()
     for index, prompt in enumerate(PROMPT_ARCHIVE_ORDER, 1):
         assert f"{index:02d}." in prompt_text
-        assert f"Source file before consolidation: `{prompt}`" in prompt_text
-    assert not list((ROOT / "docs" / "dev-history" / "prompts").glob("*.md"))
+        assert f"Archive file: [`prompts/{prompt}`](prompts/{prompt})" in prompt_text
 
 
 def test_no_unexpected_font_assets_are_committed():

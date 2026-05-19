@@ -123,6 +123,13 @@ def test_e2e_test_mode_produces_visible_alert_and_mock_notification(tmp_path):
     assert status.recent_alerts[0].article.raw["test_mode"] is True
     assert load_config(config_path).topics[0].min_relevance_score == 80
 
+    second_status = monitor.run_e2e_test()
+
+    assert second_status.e2e_result["result"] == "success"
+    assert second_status.e2e_result["candidates_ranked"] == 1
+    assert second_status.e2e_result["notifications_succeeded"] == 1
+    assert len(notifier.sent) == 2
+
 
 def test_run_cycle_pipeline_funnel_counts_and_serializes_summary(tmp_path):
     config_path = _write_config(tmp_path)

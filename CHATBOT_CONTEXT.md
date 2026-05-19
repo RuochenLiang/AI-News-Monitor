@@ -1,6 +1,6 @@
 # Chatbot Context for AI News Monitor
 
-Generated: 2026-05-17 after final private GitHub-upload cleanup
+Generated: 2026-05-19 after final private GitHub-upload cleanup verification
 
 ## Read This First
 
@@ -36,6 +36,9 @@ The app is not a trading bot, investment adviser, broker integration, or stock r
 - macOS Qt startup now copies PySide6 Qt plugins into a clean temporary cache before `QApplication` starts, which avoids plugin load failures from copied/quarantined venv files.
 - `.gitignore`, tests, and docs now cover public upload safety, obvious secret scans, runtime artifact scans, workflow checks, root prompt cleanup, and GPL-3.0-only release metadata.
 - Historical development prompts were moved out of the root into `docs/dev-history/prompts/`.
+- Prompt archive links now point at standalone numbered files, with `docs/dev-history/prompt.md` retained as a consolidated reference.
+- GDELT multi-keyword OR queries are wrapped in parentheses for safer production query syntax.
+- E2E Test Mode can be rerun without stored-alert dedupe blocking the controlled second test alert.
 - `CURRENT_RUNTIME_STATUS.json` was treated as local runtime data and removed from the public-upload candidate.
 
 ## How To Run Locally
@@ -89,10 +92,9 @@ Latest local verification after the final private GitHub-upload cleanup:
 
 - `python -m ruff check .`: passed.
 - `python -m black --check .`: passed.
-- Release-readiness tests: 17 passed.
-- Target E2E/source reliability/interface/config tests: 45 passed.
-- `python -m pytest -q`: 102 passed.
-- `python -m pytest --cov=src --cov-report=term-missing -q`: 102 passed, 66% coverage.
+- Targeted source/E2E/release-readiness tests: 34 passed, 3 skipped.
+- `python -m pytest`: 89 passed, 14 skipped.
+- `python -m pytest --cov=src --cov-report=term-missing -q`: 89 passed, 14 skipped, 54% coverage.
 - `python -m compileall src tests`: passed.
 - `config.example.yaml` parse: passed.
 - Runtime dependency check: passed.

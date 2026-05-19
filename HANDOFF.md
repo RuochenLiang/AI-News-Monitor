@@ -2,7 +2,7 @@
 
 ## Current Goal
 
-Finalize AI News Monitor for a first private GitHub push according to `docs/dev-history/prompts/ai_news_monitor_final_github_upload_cleanup_prompt.md`: clean root directory, public upload safety, documentation polish, dependency/bootstrap checks, GitHub Actions readiness, release checklist alignment, and final handoff.
+Finalize AI News Monitor for a first private GitHub push according to `docs/dev-history/prompts/10-clean-root-for-final-github-upload.md`: clean root directory, public upload safety, documentation polish, dependency/bootstrap checks, GitHub Actions readiness, release checklist alignment, and final handoff.
 
 ## Completed Work
 
@@ -22,6 +22,9 @@ Finalize AI News Monitor for a first private GitHub push according to `docs/dev-
 - Added or expanded release-readiness tests for dependency checks, secret scans, runtime artifact scans, state document synchronization, workflow commands, public release files, license metadata, and browser console readiness affordances.
 - Synchronized `CHATBOT_CONTEXT.md`, `HANDOFF.md`, `NEXT_VERSION_MONITORING_REPORT.md`, `docs/RELEASE_CHECKLIST.md`, docs, and changelog with the latest E2E/readiness state.
 - Moved historical root-level development prompts into `docs/dev-history/prompts/` and added `docs/dev-history/README.md`.
+- Prompt archive links now point at standalone numbered files, with `docs/dev-history/prompt.md` retained as a consolidated reference.
+- GDELT multi-keyword OR queries are wrapped in parentheses for safer production query syntax.
+- E2E Test Mode can be rerun without stored-alert dedupe blocking the controlled second test alert.
 - Removed generated local artifacts from the repository root, including cache directories, `.DS_Store`, `.coverage`, and generated zip archives.
 
 ## Files Changed In This Readiness Pass
@@ -33,9 +36,11 @@ Finalize AI News Monitor for a first private GitHub push according to `docs/dev-
 - `src/pipeline.py`
 - `src/realtime.py`
 - `src/source_reliability.py`
+- `src/sources/gdelt.py`
 - `tests/test_app_qt_runtime.py`
 - `tests/test_e2e_operational_closure.py`
 - `tests/test_release_readiness.py`
+- `tests/test_sources.py`
 - `CHATBOT_CONTEXT.md`
 - `HANDOFF.md`
 - `NEXT_VERSION_MONITORING_REPORT.md`
@@ -49,6 +54,7 @@ Finalize AI News Monitor for a first private GitHub push according to `docs/dev-
 - `docs/RELEASE_CHECKLIST.md`
 - `CHANGELOG.md`
 - `docs/dev-history/README.md`
+- `docs/dev-history/prompt.md`
 - `docs/dev-history/prompts/`
 
 ## Commands To Run After Resume
@@ -66,14 +72,13 @@ python -c "from pathlib import Path; from src.config import load_config; load_co
 
 ## Latest Known Test Results
 
-Final local verification on 2026-05-17:
+Final local verification on 2026-05-19:
 
 - Ruff: `python -m ruff check .` passed.
 - Black check: `python -m black --check .` passed.
-- Release-readiness tests: `17 passed`.
-- Target E2E/source reliability/interface/config tests: `45 passed`.
-- Full pytest: `102 passed`.
-- Coverage run: `102 passed`, total coverage `66%`.
+- Targeted source/E2E/release-readiness tests: `34 passed`, `3 skipped`.
+- Full pytest: `89 passed`, `14 skipped`.
+- Coverage run: `89 passed`, `14 skipped`, total coverage `54%`.
 - Compileall: passed.
 - `config.example.yaml` parse: passed.
 - Runtime dependency check: passed.

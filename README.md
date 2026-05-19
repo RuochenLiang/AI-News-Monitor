@@ -14,21 +14,21 @@ This project was developed with AI assistance. AI-assisted code, documentation, 
 
 ## Development Prompt Archive
 
-The markdown file [docs/dev-history/prompt.md](docs/dev-history/prompt.md) consolidates the given development prompts used while building and preparing this project for release. It is project history, not a file required for normal installation or use.
+The historical development prompts live as standalone Markdown files in [docs/dev-history/prompts/](docs/dev-history/prompts/), with filenames that summarize each prompt's main purpose. A consolidated reference copy remains at [docs/dev-history/prompt.md](docs/dev-history/prompt.md). These files are project history, not files required for normal installation or use.
 
 Ordered prompt archive:
 
-1. [Initial AI News Monitor prompt](docs/dev-history/prompt.md#01-initial-ai-news-monitor-prompt)
-2. [Next-phase product prompt](docs/dev-history/prompt.md#02-next-phase-product-prompt)
-3. [Update prompt](docs/dev-history/prompt.md#03-update-prompt)
-4. [Next-iteration prompt](docs/dev-history/prompt.md#04-next-iteration-prompt)
-5. [Final target candidate prompt](docs/dev-history/prompt.md#05-final-target-candidate-prompt)
-6. [Pre-GitHub interface stabilization prompt](docs/dev-history/prompt.md#06-pre-github-interface-stabilization-prompt)
-7. [Source reliability and freshness prompt](docs/dev-history/prompt.md#07-source-reliability-and-freshness-prompt)
-8. [GitHub upload readiness prompt](docs/dev-history/prompt.md#08-github-upload-readiness-prompt)
-9. [E2E operational closure prompt](docs/dev-history/prompt.md#09-e2e-operational-closure-prompt)
-10. [Final GitHub upload cleanup prompt](docs/dev-history/prompt.md#10-final-github-upload-cleanup-prompt)
-11. [Phase verification prompt](docs/dev-history/prompt.md#11-phase-verification-prompt)
+1. [01-build-lightweight-desktop-ai-news-monitor.md](docs/dev-history/prompts/01-build-lightweight-desktop-ai-news-monitor.md)
+2. [02-expand-into-24-7-global-information-agent.md](docs/dev-history/prompts/02-expand-into-24-7-global-information-agent.md)
+3. [03-add-presets-minimal-ui-and-source-management.md](docs/dev-history/prompts/03-add-presets-minimal-ui-and-source-management.md)
+4. [04-improve-fast-alerts-ui-i18n-sources-notifications.md](docs/dev-history/prompts/04-improve-fast-alerts-ui-i18n-sources-notifications.md)
+5. [05-prepare-v0-9-open-source-release-candidate.md](docs/dev-history/prompts/05-prepare-v0-9-open-source-release-candidate.md)
+6. [06-stabilize-llm-email-source-diagnostics-and-setup-ux.md](docs/dev-history/prompts/06-stabilize-llm-email-source-diagnostics-and-setup-ux.md)
+7. [07-add-source-reliability-freshness-and-intelligence-gaps.md](docs/dev-history/prompts/07-add-source-reliability-freshness-and-intelligence-gaps.md)
+8. [08-finalize-github-upload-readiness-and-release-gates.md](docs/dev-history/prompts/08-finalize-github-upload-readiness-and-release-gates.md)
+9. [09-prove-e2e-alert-delivery-and-clean-browser-console.md](docs/dev-history/prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md)
+10. [10-clean-root-for-final-github-upload.md](docs/dev-history/prompts/10-clean-root-for-final-github-upload.md)
+11. [11-verify-next-phase-features-and-runtime-stability.md](docs/dev-history/prompts/11-verify-next-phase-features-and-runtime-stability.md)
 
 ## Quick Start on macOS
 

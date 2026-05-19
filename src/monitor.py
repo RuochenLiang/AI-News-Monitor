@@ -190,7 +190,7 @@ class NewsMonitor:
             increment(funnel, "articles_rejected_as_duplicates", duplicate_count)
             reject(funnel, "duplicate", duplicate_count)
             increment(funnel, "articles_after_deduplication", len(unique_articles))
-            candidates = self._candidate_articles(unique_articles, topic, config, funnel)
+            candidates = self._candidate_articles(unique_articles, topic, config, funnel, skip_seen_dedupe=test_mode)
             cluster_articles(candidates, config.bias.min_cluster_size)
             candidates = rank_articles(candidates, topic, config.quality, preferred_language=config.app.output_language)
             increment(funnel, "candidates_ranked", len(candidates))
@@ -411,7 +411,13 @@ class NewsMonitor:
         return articles
 
     def _candidate_articles(
-        self, articles: list[Article], topic: TopicConfig, config: AppConfig, funnel: dict | None = None
+        self,
+        articles: list[Article],
+        topic: TopicConfig,
+        config: AppConfig,
+        funnel: dict | None = None,
+        *,
+        skip_seen_dedupe: bool = False,
     ) -> list[Article]:
         dedupe_hours = config.monitor.deduplicate_hours
         cutoff = utc_now() - timedelta(hours=dedupe_hours)
@@ -442,14 +448,15 @@ class NewsMonitor:
                     reject(funnel, "no_keyword_match")
                     continue
             increment(funnel, "articles_keyword_matched")
-            if self.store.is_processed(article, topic.name):
-                increment(funnel, "articles_rejected_as_duplicates")
-                reject(funnel, "duplicate")
-                continue
-            if self.store.seen_similar_recently(article, topic.name, dedupe_hours):
-                increment(funnel, "articles_rejected_as_duplicates")
-                reject(funnel, "duplicate")
-                continue
+            if not skip_seen_dedupe:
+                if self.store.is_processed(article, topic.name):
+                    increment(funnel, "articles_rejected_as_duplicates")
+                    reject(funnel, "duplicate")
+                    continue
+                if self.store.seen_similar_recently(article, topic.name, dedupe_hours):
+                    increment(funnel, "articles_rejected_as_duplicates")
+                    reject(funnel, "duplicate")
+                    continue
             candidates.append(article)
         return candidates
 

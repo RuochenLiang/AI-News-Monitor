@@ -67,7 +67,11 @@ class GdeltSource(NewsSource):
 
 def build_gdelt_query(topic: TopicConfig, *, keyword_limit: int = 8) -> str:
     keywords = [keyword.strip() for keyword in topic.keywords if keyword.strip()]
-    query = " OR ".join(f'"{keyword}"' for keyword in keywords[:keyword_limit]) or topic.name.strip()
+    terms = [f'"{keyword}"' for keyword in keywords[:keyword_limit]]
+    if len(terms) > 1:
+        query = f"({' OR '.join(terms)})"
+    else:
+        query = terms[0] if terms else topic.name.strip()
     validate_gdelt_query(query)
     return query
 

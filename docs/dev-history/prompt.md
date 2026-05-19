@@ -4,23 +4,23 @@ This file consolidates the historical development prompts in their original sequ
 
 ## Contents
 
-1. [Initial AI News Monitor prompt](#01-initial-ai-news-monitor-prompt)
-2. [Next-phase product prompt](#02-next-phase-product-prompt)
-3. [Update prompt](#03-update-prompt)
-4. [Next-iteration prompt](#04-next-iteration-prompt)
-5. [Final target candidate prompt](#05-final-target-candidate-prompt)
-6. [Pre-GitHub interface stabilization prompt](#06-pre-github-interface-stabilization-prompt)
-7. [Source reliability and freshness prompt](#07-source-reliability-and-freshness-prompt)
-8. [GitHub upload readiness prompt](#08-github-upload-readiness-prompt)
-9. [E2E operational closure prompt](#09-e2e-operational-closure-prompt)
-10. [Final GitHub upload cleanup prompt](#10-final-github-upload-cleanup-prompt)
-11. [Phase verification prompt](#11-phase-verification-prompt)
+1. [01-build-lightweight-desktop-ai-news-monitor.md](prompts/01-build-lightweight-desktop-ai-news-monitor.md)
+2. [02-expand-into-24-7-global-information-agent.md](prompts/02-expand-into-24-7-global-information-agent.md)
+3. [03-add-presets-minimal-ui-and-source-management.md](prompts/03-add-presets-minimal-ui-and-source-management.md)
+4. [04-improve-fast-alerts-ui-i18n-sources-notifications.md](prompts/04-improve-fast-alerts-ui-i18n-sources-notifications.md)
+5. [05-prepare-v0-9-open-source-release-candidate.md](prompts/05-prepare-v0-9-open-source-release-candidate.md)
+6. [06-stabilize-llm-email-source-diagnostics-and-setup-ux.md](prompts/06-stabilize-llm-email-source-diagnostics-and-setup-ux.md)
+7. [07-add-source-reliability-freshness-and-intelligence-gaps.md](prompts/07-add-source-reliability-freshness-and-intelligence-gaps.md)
+8. [08-finalize-github-upload-readiness-and-release-gates.md](prompts/08-finalize-github-upload-readiness-and-release-gates.md)
+9. [09-prove-e2e-alert-delivery-and-clean-browser-console.md](prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md)
+10. [10-clean-root-for-final-github-upload.md](prompts/10-clean-root-for-final-github-upload.md)
+11. [11-verify-next-phase-features-and-runtime-stability.md](prompts/11-verify-next-phase-features-and-runtime-stability.md)
 
 ---
 
 ## 01. Initial AI News Monitor prompt
 
-Source file before consolidation: `01-codex_prompt_ai_news_monitor.md`
+Archive file: [`prompts/01-build-lightweight-desktop-ai-news-monitor.md`](prompts/01-build-lightweight-desktop-ai-news-monitor.md)
 
 # Codex Prompt: Build a Lightweight 24/7 AI News Monitor Desktop App
 
@@ -940,7 +940,7 @@ Do not ask follow-up questions unless a requirement is technically impossible. M
 
 ## 02. Next-phase product prompt
 
-Source file before consolidation: `02-codex_next_phase_prompt.md`
+Archive file: [`prompts/02-expand-into-24-7-global-information-agent.md`](prompts/02-expand-into-24-7-global-information-agent.md)
 
 This file contains the high‑level specification for the **AI News Monitor – Next Phase** project.  The goal is to evolve the existing news monitor into a lightweight yet powerful tool that can gather real‑time information from around the globe, filter it intelligently, and deliver it to the user through email or messaging apps.  Analysis remains the user’s responsibility; the monitor focuses on timely collection and high‑quality surfacing of relevant articles.
 
@@ -1073,7 +1073,7 @@ The Codex agent should consider this implementation complete when:
 
 ## 03. Update prompt
 
-Source file before consolidation: `03-codex_update_prompt.md`
+Archive file: [`prompts/03-add-presets-minimal-ui-and-source-management.md`](prompts/03-add-presets-minimal-ui-and-source-management.md)
 
 The purpose of this update is to refine and enhance the AI News Monitor desktop application you already started building.  The new requirements focus on usability, aesthetics, configuration defaults and extensibility, while preserving the project's core philosophy of being lightweight, secure and easily deployable on Windows and macOS.
 
@@ -1111,16 +1111,16 @@ At completion, the project should provide a modern, minimalistic interface with 
 
 ## 04. Next-iteration prompt
 
-Source file before consolidation: `04-ai_news_monitor_next_iteration_prompt.md`
+Archive file: [`prompts/04-improve-fast-alerts-ui-i18n-sources-notifications.md`](prompts/04-improve-fast-alerts-ui-i18n-sources-notifications.md)
 
 # AI News Monitor — Next Iteration Codex Goal Prompt
 
 ## How to use this file
 
-Put this file in the root of the current AI News Monitor repository. Then run Codex CLI from the project root and start the task with:
+From the repository root, run Codex CLI with this archived prompt:
 
 ```text
-/goal Read ./ai_news_monitor_next_iteration_prompt.md carefully and implement everything described in it. Treat this file as the authoritative next-iteration product and engineering specification. Before coding, read HANDOFF.md, README.md, config.example.yaml, and tests/test_next_phase_features.py. Work in focused milestones, run tests after each milestone, avoid hard-coding secrets, and finish with a requirement-by-requirement audit.
+/goal Read ./docs/dev-history/prompts/04-improve-fast-alerts-ui-i18n-sources-notifications.md carefully and implement everything described in it. Treat this file as the authoritative next-iteration product and engineering specification. Before coding, read HANDOFF.md, README.md, config.example.yaml, and tests/test_next_phase_features.py. Work in focused milestones, run tests after each milestone, avoid hard-coding secrets, and finish with a requirement-by-requirement audit.
 ```
 
 ## Mission
@@ -1986,7 +1986,7 @@ This iteration is complete only when:
 
 ## 05. Final target candidate prompt
 
-Source file before consolidation: `05-ai_news_monitor_final_target_candidate_prompt.md`
+Archive file: [`prompts/05-prepare-v0-9-open-source-release-candidate.md`](prompts/05-prepare-v0-9-open-source-release-candidate.md)
 
 # AI News Monitor v0.9 — Final Target Candidate + Open Source Release Readiness
 
@@ -1995,7 +1995,7 @@ Source file before consolidation: `05-ai_news_monitor_final_target_candidate_pro
 Place this file in the repository root, then run Codex CLI from the repository root and use:
 
 ```text
-/goal Read ./ai_news_monitor_final_target_candidate_prompt.md carefully and implement everything described in it. Treat this file as the authoritative product and engineering specification for the next major iteration. Before coding, read HANDOFF.md, README.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, config.example.yaml, src/, and tests/. Do not assume real API keys or real run data. Work in milestones, run tests after each milestone, avoid hard-coded secrets, keep all source code English-only, prepare the repository for public open-source release under GPL-3.0-only, and finish with a requirement-by-requirement audit.
+/goal Read ./docs/dev-history/prompts/05-prepare-v0-9-open-source-release-candidate.md carefully and implement everything described in it. Treat this file as the authoritative product and engineering specification for the next major iteration. Before coding, read HANDOFF.md, README.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, config.example.yaml, src/, and tests/. Do not assume real API keys or real run data. Work in milestones, run tests after each milestone, avoid hard-coded secrets, keep all source code English-only, prepare the repository for public open-source release under GPL-3.0-only, and finish with a requirement-by-requirement audit.
 ```
 
 ---
@@ -3171,16 +3171,16 @@ This iteration is complete only when:
 
 ## 06. Pre-GitHub interface stabilization prompt
 
-Source file before consolidation: `06-ai_news_monitor_pre_github_interface_stabilization_prompt.md`
+Archive file: [`prompts/06-stabilize-llm-email-source-diagnostics-and-setup-ux.md`](prompts/06-stabilize-llm-email-source-diagnostics-and-setup-ux.md)
 
 # AI News Monitor — Pre-GitHub Release Interface Stabilization Prompt
 
 ## Recommended Codex CLI command
 
-Place this file in the repository root, then run Codex CLI from the repository root:
+From the repository root, run Codex CLI with this archived prompt:
 
 ```text
-/goal Read ./ai_news_monitor_pre_github_interface_stabilization_prompt.md carefully and implement everything described in it. Treat this file as the authoritative pre-GitHub release stabilization specification. Before coding, read HANDOFF.md, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Focus on interface stability, actionable diagnostics, beginner-friendly setup, UI readability, lightweight implementation, and public GitHub release readiness. Keep source code English-only, keep Chinese only in locale/documentation resources, run tests after each milestone, and finish with a requirement-by-requirement audit.
+/goal Read ./docs/dev-history/prompts/06-stabilize-llm-email-source-diagnostics-and-setup-ux.md carefully and implement everything described in it. Treat this file as the authoritative pre-GitHub release stabilization specification. Before coding, read HANDOFF.md, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Focus on interface stability, actionable diagnostics, beginner-friendly setup, UI readability, lightweight implementation, and public GitHub release readiness. Keep source code English-only, keep Chinese only in locale/documentation resources, run tests after each milestone, and finish with a requirement-by-requirement audit.
 ```
 
 ---
@@ -4164,16 +4164,16 @@ This iteration is complete only when:
 
 ## 07. Source reliability and freshness prompt
 
-Source file before consolidation: `07-ai_news_monitor_source_reliability_freshness_prompt.md`
+Archive file: [`prompts/07-add-source-reliability-freshness-and-intelligence-gaps.md`](prompts/07-add-source-reliability-freshness-and-intelligence-gaps.md)
 
 # AI News Monitor — Source Reliability, Freshness & Intelligence Gaps Upgrade Prompt
 
 ## Codex CLI command
 
-Place this file in the repository root, then run Codex CLI from the repository root:
+From the repository root, run Codex CLI with this archived prompt:
 
 ```text
-/goal Read ./ai_news_monitor_source_reliability_freshness_prompt.md carefully and implement everything described in it. Treat this file as the authoritative specification for the next iteration. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Do not copy code, assets, data, or text from external projects. Only use architectural ideas. Focus on source reliability, freshness states, intelligence gaps, source caching, smart polling/backoff, and source-package presets while keeping the app lightweight and public-GitHub-ready. Keep source code English-only, keep Chinese only in locale/documentation resources, run tests after each milestone, and finish with a requirement-by-requirement audit.
+/goal Read ./docs/dev-history/prompts/07-add-source-reliability-freshness-and-intelligence-gaps.md carefully and implement everything described in it. Treat this file as the authoritative specification for the next iteration. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Do not copy code, assets, data, or text from external projects. Only use architectural ideas. Focus on source reliability, freshness states, intelligence gaps, source caching, smart polling/backoff, and source-package presets while keeping the app lightweight and public-GitHub-ready. Keep source code English-only, keep Chinese only in locale/documentation resources, run tests after each milestone, and finish with a requirement-by-requirement audit.
 ```
 
 ---
@@ -5061,16 +5061,16 @@ This iteration is complete only when:
 
 ## 08. GitHub upload readiness prompt
 
-Source file before consolidation: `08-ai_news_monitor_github_upload_readiness_prompt.md`
+Archive file: [`prompts/08-finalize-github-upload-readiness-and-release-gates.md`](prompts/08-finalize-github-upload-readiness-and-release-gates.md)
 
 # AI News Monitor — GitHub Upload Readiness Finalization Prompt
 
 ## Recommended Codex CLI command
 
-Place this file in the repository root, then run Codex CLI from the repository root:
+From the repository root, run Codex CLI with this archived prompt:
 
 ```text
-/goal Read ./ai_news_monitor_github_upload_readiness_prompt.md carefully and implement everything described in it. Treat this file as the authoritative final pre-GitHub upload readiness specification. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, NEXT_VERSION_MONITORING_REPORT.md, CURRENT_RUNTIME_STATUS.json, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Do not add broad new features. Focus on release blockers, public repository readiness, E2E operational verification, documentation synchronization, dependency/bootstrap checks, and final polish. Keep source code English-only, keep Chinese only in locale/documentation resources, do not expose secrets, run tests after each milestone, and finish with a requirement-by-requirement audit.
+/goal Read ./docs/dev-history/prompts/08-finalize-github-upload-readiness-and-release-gates.md carefully and implement everything described in it. Treat this file as the authoritative final pre-GitHub upload readiness specification. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, NEXT_VERSION_MONITORING_REPORT.md, CURRENT_RUNTIME_STATUS.json, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Do not add broad new features. Focus on release blockers, public repository readiness, E2E operational verification, documentation synchronization, dependency/bootstrap checks, and final polish. Keep source code English-only, keep Chinese only in locale/documentation resources, do not expose secrets, run tests after each milestone, and finish with a requirement-by-requirement audit.
 ```
 
 ---
@@ -5916,16 +5916,16 @@ This iteration is complete only when:
 
 ## 09. E2E operational closure prompt
 
-Source file before consolidation: `09-ai_news_monitor_e2e_operational_closure_prompt.md`
+Archive file: [`prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md`](prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md)
 
 # AI News Monitor — E2E Operational Closure & Concise Browser Console Prompt
 
 ## Recommended Codex CLI command
 
-Place this file in the repository root, then run Codex CLI from the repository root:
+From the repository root, run Codex CLI with this archived prompt:
 
 ```text
-/goal Read ./ai_news_monitor_e2e_operational_closure_prompt.md carefully and implement everything described in it. Treat this file as the authoritative next-iteration specification. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, NEXT_VERSION_MONITORING_REPORT.md, CURRENT_RUNTIME_STATUS.json, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Focus on proving the full fetch→candidate→LLM→alert→notification chain, fixing source/runtime blockers, and making the browser console concise, readable, and useful. Keep source code English-only, keep Chinese only in locale/documentation resources, do not expose secrets, run tests after each milestone, and finish with a requirement-by-requirement audit.
+/goal Read ./docs/dev-history/prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md carefully and implement everything described in it. Treat this file as the authoritative next-iteration specification. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, NEXT_VERSION_MONITORING_REPORT.md, CURRENT_RUNTIME_STATUS.json, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, and .github/workflows/. Do not assume real API keys, real Gmail credentials, real webhook tokens, or real runtime data. Focus on proving the full fetch→candidate→LLM→alert→notification chain, fixing source/runtime blockers, and making the browser console concise, readable, and useful. Keep source code English-only, keep Chinese only in locale/documentation resources, do not expose secrets, run tests after each milestone, and finish with a requirement-by-requirement audit.
 ```
 
 ---
@@ -6747,16 +6747,16 @@ This iteration is complete only when:
 
 ## 10. Final GitHub upload cleanup prompt
 
-Source file before consolidation: `10-ai_news_monitor_final_github_upload_cleanup_prompt.md`
+Archive file: [`prompts/10-clean-root-for-final-github-upload.md`](prompts/10-clean-root-for-final-github-upload.md)
 
 # AI News Monitor — Final GitHub Upload Cleanup Prompt
 
 ## Recommended Codex CLI command
 
-Place this file in the repository root, then run Codex CLI from the repository root:
+From the repository root, run Codex CLI with this archived prompt:
 
 ```text
-/goal Read ./ai_news_monitor_final_github_upload_cleanup_prompt.md carefully and implement everything described in it. Treat this file as the authoritative final GitHub-upload cleanup specification. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, NEXT_VERSION_MONITORING_REPORT.md, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, .github/workflows/, .gitignore, pyproject.toml, requirements.txt, and requirements-dev.txt. Do not assume real API keys, real Gmail credentials, real webhook tokens, real notification targets, or real runtime data. Do not push to GitHub or create a remote. Focus only on making the local repository clean, safe, professional, and ready for a first private GitHub push. Keep source code English-only, keep Chinese only in locale/documentation resources, avoid broad feature changes, run tests/checks after each milestone, and finish with a GitHub-upload readiness audit plus exact next commands for the user.
+/goal Read ./docs/dev-history/prompts/10-clean-root-for-final-github-upload.md carefully and implement everything described in it. Treat this file as the authoritative final GitHub-upload cleanup specification. Before coding, read CHATBOT_CONTEXT.md, HANDOFF.md, NEXT_VERSION_MONITORING_REPORT.md, README.md, README.zh-CN.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md, docs/RELEASE_CHECKLIST.md, config.example.yaml, src/, tests/, locales/, .github/workflows/, .gitignore, pyproject.toml, requirements.txt, and requirements-dev.txt. Do not assume real API keys, real Gmail credentials, real webhook tokens, real notification targets, or real runtime data. Do not push to GitHub or create a remote. Focus only on making the local repository clean, safe, professional, and ready for a first private GitHub push. Keep source code English-only, keep Chinese only in locale/documentation resources, avoid broad feature changes, run tests/checks after each milestone, and finish with a GitHub-upload readiness audit plus exact next commands for the user.
 ```
 
 ---
@@ -6830,16 +6830,16 @@ The root directory should look like a professional open-source project, not a de
 There may be many historical prompt files in the root, such as:
 
 ```text
-ai_news_monitor_source_reliability_freshness_prompt.md
-ai_news_monitor_github_upload_readiness_prompt.md
-ai_news_monitor_next_iteration_prompt.md
-phase_verification_prompt.md
-ai_news_monitor_pre_github_interface_stabilization_prompt.md
-codex_next_phase_prompt.md
-ai_news_monitor_final_target_candidate_prompt.md
-ai_news_monitor_e2e_operational_closure_prompt.md
-codex_prompt_ai_news_monitor.md
-codex_update_prompt.md
+07-add-source-reliability-freshness-and-intelligence-gaps.md
+08-finalize-github-upload-readiness-and-release-gates.md
+04-improve-fast-alerts-ui-i18n-sources-notifications.md
+11-verify-next-phase-features-and-runtime-stability.md
+06-stabilize-llm-email-source-diagnostics-and-setup-ux.md
+02-expand-into-24-7-global-information-agent.md
+05-prepare-v0-9-open-source-release-candidate.md
+09-prove-e2e-alert-delivery-and-clean-browser-console.md
+01-build-lightweight-desktop-ai-news-monitor.md
+03-add-presets-minimal-ui-and-source-management.md
 ```
 
 These files are useful development history but should not clutter the root of a public repository.
@@ -7334,7 +7334,7 @@ This iteration is complete only when:
 
 ## 11. Phase verification prompt
 
-Source file before consolidation: `11-phase_verification_prompt.md`
+Archive file: [`prompts/11-verify-next-phase-features-and-runtime-stability.md`](prompts/11-verify-next-phase-features-and-runtime-stability.md)
 
 # Phase Verification Prompt
 

@@ -5,7 +5,7 @@ import httpx
 from src.models import TopicConfig
 from src.monitor import build_sources
 from src.sources.custom_rss import CustomRssSource
-from src.sources.gdelt import GdeltSource
+from src.sources.gdelt import GdeltSource, build_gdelt_query
 from src.sources.official_rss import OfficialRssSource
 
 RSS = b"""<?xml version="1.0"?>
@@ -54,6 +54,14 @@ def test_gdelt_source_parses_mocked_json():
     assert len(articles) == 1
     assert articles[0].source == "GDELT"
     assert articles[0].published_at is not None
+
+
+def test_gdelt_or_query_wraps_terms_in_parentheses():
+    topic = TopicConfig("Topic", True, "Prompt", ["OpenAI", "NVIDIA", "Taiwan chips"])
+
+    query = build_gdelt_query(topic)
+
+    assert query == '("OpenAI" OR "NVIDIA" OR "Taiwan chips")'
 
 
 def test_build_sources_includes_custom_rss_source():
