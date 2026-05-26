@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a reproducible problem in AI News Monitor.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, SMTP passwords, webhook URLs, Telegram tokens, chat IDs, or private runtime files.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release version, artifact name, or commit SHA.
+      placeholder: v0.9.0-rc1 or fd34b2f
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux or other
+    validations:
+      required: true
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Install method
+      options:
+        - Release archive
+        - GitHub Actions artifact
+        - Source checkout
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: List the exact steps, including which Test button or command failed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Paste logs, readiness output, or error categories after removing secrets.
+      render: text

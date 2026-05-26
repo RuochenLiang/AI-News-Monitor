@@ -88,9 +88,9 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 
 - `START_HERE.md` and `START_HERE.zh-CN.md` explain the release-archive path: unzip, open the app, fill LLM/source/topic/notification settings, run tests, and start monitoring.
 - `README.md` and `README.zh-CN.md` explain local run steps, Run Once, E2E Test Mode, diagnostics, event clustering, event timelines, pipeline funnel, 0-alert interpretation, readiness vs health, LLM setup, Gmail app passwords, sender vs receiver fields, source testing, and notification testing.
-- `NOTIFICATION_GUIDE.md` explains event alert rendering, timelines, source links, Gmail app password setup, SMTP categories, webhook categories, fallback routing, From Address readiness, and pipeline notification failure reasons.
-- `SOURCE_GUIDE.md` explains public-source policy, source testing, bulk source diagnostics, GDELT/Yahoo common failures, source package warnings, and website-only candidates.
-- `SOURCE_GUIDE.md` explains source tiers, roles, state-affiliation/propaganda-risk context, freshness states, intelligence gaps, source cache, smart polling/backoff, source presets, manual/auto/hybrid source modes, coverage quality, event clustering, timeline date safety, and multi-source confirmation.
+- `docs/guides/NOTIFICATION_GUIDE.md` explains event alert rendering, timelines, source links, Gmail app password setup, SMTP categories, webhook categories, fallback routing, From Address readiness, and pipeline notification failure reasons.
+- `docs/guides/SOURCE_GUIDE.md` explains public-source policy, source testing, bulk source diagnostics, GDELT/Yahoo common failures, source package warnings, and website-only candidates.
+- `docs/guides/SOURCE_GUIDE.md` explains source tiers, roles, state-affiliation/propaganda-risk context, freshness states, intelligence gaps, source cache, smart polling/backoff, source presets, manual/auto/hybrid source modes, coverage quality, event clustering, timeline date safety, and multi-source confirmation.
 - `docs/LLM_PROVIDERS.md`, `docs/SOCIAL_SOURCES.md`, and `docs/VERIFICATION_PIPELINE.md` explain OpenAI/DeepSeek routing, X.com cost/confirmation caveats, and verification gate behavior.
 - `config.example.yaml` and `.env.example` contain placeholders only.
 

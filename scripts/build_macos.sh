@@ -41,9 +41,9 @@ mkdir -p "$DIST_DIR" "$WORK_DIR" "$SPEC_DIR" "$RELEASE_DIR"
   --add-data "$ROOT_DIR/README.md:." \
   --add-data "$ROOT_DIR/README.zh-CN.md:." \
   --add-data "$ROOT_DIR/LICENSE:." \
-  --add-data "$ROOT_DIR/AI_DISCLOSURE.md:." \
-  --add-data "$ROOT_DIR/SOURCE_GUIDE.md:." \
-  --add-data "$ROOT_DIR/NOTIFICATION_GUIDE.md:." \
+  --add-data "$ROOT_DIR/docs/project/AI_DISCLOSURE.md:." \
+  --add-data "$ROOT_DIR/docs/guides/SOURCE_GUIDE.md:." \
+  --add-data "$ROOT_DIR/docs/guides/NOTIFICATION_GUIDE.md:." \
   --add-data "$ROOT_DIR/locales:locales" \
   main.py
 
@@ -53,7 +53,8 @@ xattr -cr "$APP_PATH" || true
 codesign --force --deep --sign - "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
-cp config.example.yaml .env.example START_HERE.md START_HERE.zh-CN.md README.md README.zh-CN.md LICENSE AI_DISCLOSURE.md SOURCE_GUIDE.md NOTIFICATION_GUIDE.md "$RELEASE_DIR/"
+cp config.example.yaml .env.example START_HERE.md START_HERE.zh-CN.md README.md README.zh-CN.md LICENSE "$RELEASE_DIR/"
+cp docs/project/AI_DISCLOSURE.md docs/guides/SOURCE_GUIDE.md docs/guides/NOTIFICATION_GUIDE.md "$RELEASE_DIR/"
 cp -R "$APP_PATH" "$RELEASE_DIR/"
 find "$RELEASE_DIR" -name ".DS_Store" -delete
 cd "$RELEASE_DIR"

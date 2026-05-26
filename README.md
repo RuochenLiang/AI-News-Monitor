@@ -16,29 +16,22 @@ If you downloaded the GitHub source zip, use the quick start commands below. Sou
 
 AI News Monitor is released under `GPL-3.0-only`. See [LICENSE](LICENSE).
 
-This project was developed with AI assistance. AI-assisted code, documentation, and tests should be reviewed, tested, and maintained by the project owner or contributors before release. See [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
+This project was developed with AI assistance. AI-assisted code, documentation, and tests should be reviewed, tested, and maintained by the project owner or contributors before release. See [docs/project/AI_DISCLOSURE.md](docs/project/AI_DISCLOSURE.md).
 
-## Development Prompt Archive
+## Documentation
 
-The historical development prompts live as standalone Markdown files in [docs/dev-history/prompts/](docs/dev-history/prompts/), with filenames that summarize each prompt's main purpose. A consolidated reference copy remains at [docs/dev-history/prompt.md](docs/dev-history/prompt.md). These files are project history, not files required for normal installation or use.
+Use [docs/README.md](docs/README.md) as the documentation hub.
 
-Ordered prompt archive:
-
-1. [01-build-lightweight-desktop-ai-news-monitor.md](docs/dev-history/prompts/01-build-lightweight-desktop-ai-news-monitor.md)
-2. [02-expand-into-24-7-global-information-agent.md](docs/dev-history/prompts/02-expand-into-24-7-global-information-agent.md)
-3. [03-add-presets-minimal-ui-and-source-management.md](docs/dev-history/prompts/03-add-presets-minimal-ui-and-source-management.md)
-4. [04-improve-fast-alerts-ui-i18n-sources-notifications.md](docs/dev-history/prompts/04-improve-fast-alerts-ui-i18n-sources-notifications.md)
-5. [05-prepare-v0-9-open-source-release-candidate.md](docs/dev-history/prompts/05-prepare-v0-9-open-source-release-candidate.md)
-6. [06-stabilize-llm-email-source-diagnostics-and-setup-ux.md](docs/dev-history/prompts/06-stabilize-llm-email-source-diagnostics-and-setup-ux.md)
-7. [07-add-source-reliability-freshness-and-intelligence-gaps.md](docs/dev-history/prompts/07-add-source-reliability-freshness-and-intelligence-gaps.md)
-8. [08-finalize-github-upload-readiness-and-release-gates.md](docs/dev-history/prompts/08-finalize-github-upload-readiness-and-release-gates.md)
-9. [09-prove-e2e-alert-delivery-and-clean-browser-console.md](docs/dev-history/prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md)
-10. [10-clean-root-for-final-github-upload.md](docs/dev-history/prompts/10-clean-root-for-final-github-upload.md)
-11. [11-verify-next-phase-features-and-runtime-stability.md](docs/dev-history/prompts/11-verify-next-phase-features-and-runtime-stability.md)
-12. [12-structured-outputs-upgrade.md](docs/dev-history/prompts/12-structured-outputs-upgrade.md)
-13. [13-runtime-web-ui-stabilization.md](docs/dev-history/prompts/13-runtime-web-ui-stabilization.md)
-14. [14-event-synthesis-timeline.md](docs/dev-history/prompts/14-event-synthesis-timeline.md)
-15. [15-intelligent-source-discovery-verification-social-deepseek.md](docs/dev-history/prompts/15-intelligent-source-discovery-verification-social-deepseek.md)
+- [Install and run](docs/INSTALL.md)
+- [Source policy and source packages](docs/guides/SOURCE_GUIDE.md)
+- [Notification setup](docs/guides/NOTIFICATION_GUIDE.md)
+- [LLM provider setup](docs/LLM_PROVIDERS.md)
+- [Verification pipeline](docs/VERIFICATION_PIPELINE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Wiki-ready pages](docs/wiki/Home.md)
+- [GitHub About metadata](docs/github/ABOUT.md)
+- [Development prompt archive](docs/dev-history/README.md)
 
 Prompt 15 introduces the next-version foundation for manual/auto/hybrid source modes, topic-schema editing, verification gates, optional social sources, event aggregation, and OpenAI/DeepSeek provider routing. See [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md), [docs/SOCIAL_SOURCES.md](docs/SOCIAL_SOURCES.md), and [docs/VERIFICATION_PIPELINE.md](docs/VERIFICATION_PIPELINE.md).
 
@@ -191,7 +184,7 @@ The app ships with a curated optional public source library and source packages:
 - Geopolitics Starter
 - AI Industry Starter
 
-Only use public RSS/Atom feeds or free public APIs. Do not add paywalled, login-only, private, or unauthorized scraped sources. See [SOURCE_GUIDE.md](SOURCE_GUIDE.md).
+Only use public RSS/Atom feeds or free public APIs. Do not add paywalled, login-only, private, or unauthorized scraped sources. See [docs/guides/SOURCE_GUIDE.md](docs/guides/SOURCE_GUIDE.md).
 
 ## Source Reliability and Coverage
 
@@ -226,7 +219,7 @@ Supported notification channels:
 - QQ relay
 - Generic webhook
 
-Notification routing supports retries and fallback order. Third-party relay services receive notification content and links; review their privacy policy and limits before using them. See [NOTIFICATION_GUIDE.md](NOTIFICATION_GUIDE.md).
+Notification routing supports retries and fallback order. Third-party relay services receive notification content and links; review their privacy policy and limits before using them. See [docs/guides/NOTIFICATION_GUIDE.md](docs/guides/NOTIFICATION_GUIDE.md).
 
 For Gmail, use `smtp.gmail.com`, port `587`, and STARTTLS. The SMTP username and From address should usually be the sender Gmail address. The recipient field is where alerts are delivered. The From address is required; if it differs from the SMTP username, the app warns because some providers reject unapproved aliases. Gmail normally requires 2-step verification and an app password; your normal Gmail login password will usually fail with `smtp_auth_failed`.
 

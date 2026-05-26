@@ -1,0 +1,45 @@
+name: Setup or configuration help
+description: Ask for help with LLM, sources, topics, notifications, or readiness.
+title: "[Setup]: "
+labels: ["question", "setup"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove secrets before posting. Do not share API keys, passwords, webhook URLs, Telegram tokens, chat IDs, or private prompts.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - LLM settings
+        - Sources
+        - Topics
+        - Notifications
+        - Readiness or local console
+        - Release archive install
+        - Source install
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 14, Windows 11, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      placeholder: Describe the desired monitoring topic, provider, source, or notification flow.
+    validations:
+      required: true
+  - type: textarea
+    id: current_state
+    attributes:
+      label: Current state
+      description: Include readiness output, test result categories, and redacted error text.
+      render: text
+    validations:
+      required: true

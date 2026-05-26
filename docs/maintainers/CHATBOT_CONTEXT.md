@@ -87,11 +87,11 @@ Use the desktop app for credentials and setup. Use the browser console for live 
 
 ## Important Files
 
-- `HANDOFF.md`: latest implementation handoff and verification notes.
+- `docs/maintainers/HANDOFF.md`: latest implementation handoff and verification notes.
 - `docs/dev-history/prompts/`: historical development prompts and readiness specifications. These are retained for context only and are not required for normal use.
 - `README.md` and `README.zh-CN.md`: user-facing docs with language links, GPL-3.0-only, AI disclosure, run instructions, readiness, Run Once, E2E Test Mode, Pipeline Funnel, and troubleshooting.
-- `SOURCE_GUIDE.md`: public-source policy, source packages, source freshness, GDELT/Yahoo failure guidance.
-- `NOTIFICATION_GUIDE.md`: notification setup, Gmail From Address requirement, diagnostics, fallback routing.
+- `docs/guides/SOURCE_GUIDE.md`: public-source policy, source packages, source freshness, GDELT/Yahoo failure guidance.
+- `docs/guides/NOTIFICATION_GUIDE.md`: notification setup, Gmail From Address requirement, diagnostics, fallback routing.
 - `docs/RELEASE_CHECKLIST.md`: public release checklist.
 - `docs/ARCHITECTURE.md`, `docs/INSTALL.md`, `docs/ROADMAP.md`: architecture, install, and future work.
 - `src/monitor.py`: monitor loop, E2E Test Mode, source fetching, event clustering, LLM event analysis, alert saving, notification sending.

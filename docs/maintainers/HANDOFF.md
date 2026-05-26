@@ -54,7 +54,7 @@ Treat `docs/dev-history/prompts/15-intelligent-source-discovery-verification-soc
 - Added source package serialization fields for failing source count and last package test time.
 - Added source package browser-console affordance telling users to enable packages in the desktop app.
 - Added or expanded release-readiness tests for dependency checks, secret scans, runtime artifact scans, state document synchronization, workflow commands, public release files, license metadata, and browser console readiness affordances.
-- Synchronized `CHATBOT_CONTEXT.md`, `HANDOFF.md`, `NEXT_VERSION_MONITORING_REPORT.md`, `docs/RELEASE_CHECKLIST.md`, docs, and changelog with the latest E2E/readiness state.
+- Synchronized `docs/maintainers/CHATBOT_CONTEXT.md`, `docs/maintainers/HANDOFF.md`, `docs/reports/NEXT_VERSION_MONITORING_REPORT.md`, `docs/RELEASE_CHECKLIST.md`, docs, and changelog with the latest E2E/readiness state.
 - Moved historical root-level development prompts into `docs/dev-history/prompts/` and added `docs/dev-history/README.md`.
 - Prompt archive links now point at standalone numbered files, with `docs/dev-history/prompt.md` retained as a consolidated reference.
 - GDELT multi-keyword OR queries are wrapped in parentheses for safer production query syntax.
@@ -85,13 +85,13 @@ Treat `docs/dev-history/prompts/15-intelligent-source-discovery-verification-soc
 - `tests/test_llm_schema.py`
 - `tests/test_release_readiness.py`
 - `tests/test_sources.py`
-- `CHATBOT_CONTEXT.md`
-- `HANDOFF.md`
-- `NEXT_VERSION_MONITORING_REPORT.md`
+- `docs/maintainers/CHATBOT_CONTEXT.md`
+- `docs/maintainers/HANDOFF.md`
+- `docs/reports/NEXT_VERSION_MONITORING_REPORT.md`
 - `README.md`
 - `README.zh-CN.md`
-- `SOURCE_GUIDE.md`
-- `NOTIFICATION_GUIDE.md`
+- `docs/guides/SOURCE_GUIDE.md`
+- `docs/guides/NOTIFICATION_GUIDE.md`
 - `docs/INSTALL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`

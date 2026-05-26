@@ -76,30 +76,38 @@ def test_public_release_files_and_links():
     assert "GPL-3.0-only" in readme
     assert "GPL-3.0-only" in readme_zh
     assert 'license = "GPL-3.0-only"' in pyproject
-    assert "AI_DISCLOSURE.md" in readme
-    assert "AI_DISCLOSURE.md" in readme_zh
+    assert "docs/project/AI_DISCLOSURE.md" in readme
+    assert "docs/project/AI_DISCLOSURE.md" in readme_zh
     development_and_packaging_heading = "## " + "".join(
         chr(codepoint) for codepoint in [0x5F00, 0x53D1, 0x548C, 0x6253, 0x5305]
     )
-    prompt_archive_heading = "".join(
-        chr(codepoint) for codepoint in [0x5F00, 0x53D1, 0x63D0, 0x793A, 0x8BCD, 0x6863, 0x6848]
-    )
     assert "## Packaging" not in readme
     assert development_and_packaging_heading not in readme_zh
-    assert "Development Prompt Archive" in readme
-    assert prompt_archive_heading in readme_zh
+    assert "Documentation" in readme
+    assert "docs/README.md" in readme
+    assert "docs/dev-history/README.md" in readme
+    assert "docs/README.md" in readme_zh
+    assert "docs/dev-history/README.md" in readme_zh
+    dev_history_readme = (ROOT / "docs" / "dev-history" / "README.md").read_text(encoding="utf-8")
     for prompt in PROMPT_ARCHIVE_ORDER:
-        archive_link = f"docs/dev-history/prompts/{prompt}"
-        assert archive_link in readme
-        assert archive_link in readme_zh
+        archive_link = f"prompts/{prompt}"
+        assert archive_link in dev_history_readme
     assert "GNU GENERAL PUBLIC LICENSE" in (ROOT / "LICENSE").read_text(encoding="utf-8")
-    assert "AI assistance" in (ROOT / "AI_DISCLOSURE.md").read_text(encoding="utf-8")
+    assert "AI assistance" in (ROOT / "docs" / "project" / "AI_DISCLOSURE.md").read_text(encoding="utf-8")
     for relative in [
         "CONTRIBUTING.md",
         "CHANGELOG.md",
         "CODE_OF_CONDUCT.md",
-        "SOURCE_GUIDE.md",
-        "NOTIFICATION_GUIDE.md",
+        "docs/README.md",
+        "docs/guides/SOURCE_GUIDE.md",
+        "docs/guides/NOTIFICATION_GUIDE.md",
+        "docs/github/ABOUT.md",
+        "docs/wiki/Home.md",
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/SECURITY.md",
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        ".github/ISSUE_TEMPLATE/config_help.yml",
+        ".github/ISSUE_TEMPLATE/feature_request.yml",
         "docs/INSTALL.md",
         "docs/ARCHITECTURE.md",
         "docs/ROADMAP.md",
@@ -341,7 +349,11 @@ def test_state_documents_are_synchronized_with_e2e_readiness():
         "GitHub Actions",
         "Windows",
     ]
-    for relative in ["CHATBOT_CONTEXT.md", "HANDOFF.md", "NEXT_VERSION_MONITORING_REPORT.md"]:
+    for relative in [
+        "docs/maintainers/CHATBOT_CONTEXT.md",
+        "docs/maintainers/HANDOFF.md",
+        "docs/reports/NEXT_VERSION_MONITORING_REPORT.md",
+    ]:
         text = (ROOT / relative).read_text(encoding="utf-8")
         for phrase in required:
             assert phrase in text, f"{relative} missing {phrase}"
