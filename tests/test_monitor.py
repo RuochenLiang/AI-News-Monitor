@@ -115,8 +115,7 @@ def test_monitor_loop_uses_filtering_llm_and_notifications(tmp_path):
 def test_monitor_summarizes_multi_source_same_event_once_and_skips_later_repeats(tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
-        CONFIG_TEXT
-        + """
+        CONFIG_TEXT + """
 source_cache:
   enabled: false
 """,

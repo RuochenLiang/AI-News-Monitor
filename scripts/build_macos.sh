@@ -36,6 +36,8 @@ mkdir -p "$DIST_DIR" "$WORK_DIR" "$SPEC_DIR" "$RELEASE_DIR"
   --specpath "$SPEC_DIR" \
   --add-data "$ROOT_DIR/config.example.yaml:." \
   --add-data "$ROOT_DIR/.env.example:." \
+  --add-data "$ROOT_DIR/START_HERE.md:." \
+  --add-data "$ROOT_DIR/START_HERE.zh-CN.md:." \
   --add-data "$ROOT_DIR/README.md:." \
   --add-data "$ROOT_DIR/README.zh-CN.md:." \
   --add-data "$ROOT_DIR/LICENSE:." \
@@ -51,7 +53,7 @@ xattr -cr "$APP_PATH" || true
 codesign --force --deep --sign - "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
-cp config.example.yaml .env.example README.md README.zh-CN.md LICENSE AI_DISCLOSURE.md SOURCE_GUIDE.md NOTIFICATION_GUIDE.md "$RELEASE_DIR/"
+cp config.example.yaml .env.example START_HERE.md START_HERE.zh-CN.md README.md README.zh-CN.md LICENSE AI_DISCLOSURE.md SOURCE_GUIDE.md NOTIFICATION_GUIDE.md "$RELEASE_DIR/"
 cp -R "$APP_PATH" "$RELEASE_DIR/"
 find "$RELEASE_DIR" -name ".DS_Store" -delete
 cd "$RELEASE_DIR"

@@ -86,6 +86,7 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 
 ## User Guidance
 
+- `START_HERE.md` and `START_HERE.zh-CN.md` explain the release-archive path: unzip, open the app, fill LLM/source/topic/notification settings, run tests, and start monitoring.
 - `README.md` and `README.zh-CN.md` explain local run steps, Run Once, E2E Test Mode, diagnostics, event clustering, event timelines, pipeline funnel, 0-alert interpretation, readiness vs health, LLM setup, Gmail app passwords, sender vs receiver fields, source testing, and notification testing.
 - `NOTIFICATION_GUIDE.md` explains event alert rendering, timelines, source links, Gmail app password setup, SMTP categories, webhook categories, fallback routing, From Address readiness, and pipeline notification failure reasons.
 - `SOURCE_GUIDE.md` explains public-source policy, source testing, bulk source diagnostics, GDELT/Yahoo common failures, source package warnings, and website-only candidates.
@@ -98,7 +99,7 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 - Build macOS with `./scripts/build_macos.sh`.
 - Build Windows on Windows or GitHub Actions with `.\scripts\build_windows.ps1`.
 - Smoke-test each archive by launching the app with a clean runtime directory.
-- Verify release archives include `README.md`, `README.zh-CN.md`, `LICENSE`, `AI_DISCLOSURE.md`, `SOURCE_GUIDE.md`, `NOTIFICATION_GUIDE.md`, `config.example.yaml`, `.env.example`, and locale files.
+- Verify release archives include `START_HERE.md`, `START_HERE.zh-CN.md`, `README.md`, `README.zh-CN.md`, `LICENSE`, `AI_DISCLOSURE.md`, `SOURCE_GUIDE.md`, `NOTIFICATION_GUIDE.md`, `config.example.yaml`, `.env.example`, and locale files.
 
 ## Manual Sanity Checks
 

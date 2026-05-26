@@ -910,9 +910,7 @@ class SettingsPage(QWidget):
             self.webhook_preset.setCurrentText(_preset_label(generic.preset))
             self.webhook_url.setText(self.env_values.get(generic.url_env, ""))
             self.webhook_method.setCurrentText(generic.method)
-            self.webhook_headers.setPlainText(
-                "\n".join(f"{key}: {value}" for key, value in generic.headers.items())
-            )
+            self.webhook_headers.setPlainText("\n".join(f"{key}: {value}" for key, value in generic.headers.items()))
             self.webhook_body_template.setPlainText(generic.body_template)
 
             self.default_interval.setValue(config.monitor.default_interval_seconds)
@@ -1409,9 +1407,7 @@ class SettingsPage(QWidget):
                 ownership = parts[4] if len(parts) > 4 and parts[4] else None
                 bias_hint = parts[5] if len(parts) > 5 and parts[5] else None
                 language = (
-                    _language_value(parts[6])
-                    if len(parts) > 6 and not _is_auto_language_label(parts[6])
-                    else None
+                    _language_value(parts[6]) if len(parts) > 6 and not _is_auto_language_label(parts[6]) else None
                 )
                 sources.append(
                     CustomNewsSourceConfig(

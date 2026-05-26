@@ -1,5 +1,28 @@
 # Install and Run
 
+## Release Archive
+
+If you downloaded `AI-News-Monitor-macOS.zip` or
+`AI-News-Monitor-Windows.zip`, start with `START_HERE.md` or
+`START_HERE.zh-CN.md` in the unzipped folder.
+
+The release flow is:
+
+1. Unzip the archive.
+2. Open the app.
+3. Fill LLM, source, topic, and notification settings in the desktop UI.
+4. Run Test LLM, Test Selected Source, and notification Test.
+5. Open `http://127.0.0.1:8765`, run E2E Test, then Run Once.
+6. Start monitoring when readiness is good.
+
+Local runtime files are created automatically:
+
+- macOS: `~/Library/Application Support/AI News Monitor/`
+- Windows: `%APPDATA%/AI News Monitor/`
+
+Do not edit API keys into the repository or app bundle. Use the desktop app
+settings; secrets are stored in the local runtime `.env` file.
+
 ## macOS
 
 ```bash

@@ -6,6 +6,12 @@ AI News Monitor is a local-first desktop app and temporary local server for moni
 
 This project is not a trading bot, broker integration, stock recommender, or investment adviser. Alerts are AI-assisted information monitoring output; verify source links before acting on them.
 
+## Start Here for Regular Users
+
+If you downloaded a release archive, open [START_HERE.md](START_HERE.md) first. It gives the shortest path for unzip -> open app -> fill LLM/source/topic/notification settings -> test -> start monitoring.
+
+If you downloaded the GitHub source zip, use the quick start commands below. Source installs still require Python 3.11.
+
 ## License and AI Disclosure
 
 AI News Monitor is released under `GPL-3.0-only`. See [LICENSE](LICENSE).

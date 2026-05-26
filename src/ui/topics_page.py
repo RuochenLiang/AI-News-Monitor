@@ -219,6 +219,7 @@ class TopicsPage(QWidget):
             self.topic_list.addItem(f"{prefix} {topic.name}")
         if self.config.topics:
             self.topic_list.setCurrentRow(0)
+            self._load_selected(0)
         else:
             self._new_topic()
 

@@ -15,6 +15,8 @@ Remove-Item -Force AI-News-Monitor-Windows.zip -ErrorAction SilentlyContinue
 & $Python -m PyInstaller --noconfirm --windowed --name "AI News Monitor" `
   --add-data "config.example.yaml;." `
   --add-data ".env.example;." `
+  --add-data "START_HERE.md;." `
+  --add-data "START_HERE.zh-CN.md;." `
   --add-data "README.md;." `
   --add-data "README.zh-CN.md;." `
   --add-data "LICENSE;." `
@@ -25,6 +27,6 @@ Remove-Item -Force AI-News-Monitor-Windows.zip -ErrorAction SilentlyContinue
   main.py
 
 New-Item -ItemType Directory -Force release | Out-Null
-Copy-Item config.example.yaml, .env.example, README.md, README.zh-CN.md, LICENSE, AI_DISCLOSURE.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md release/
+Copy-Item config.example.yaml, .env.example, START_HERE.md, START_HERE.zh-CN.md, README.md, README.zh-CN.md, LICENSE, AI_DISCLOSURE.md, SOURCE_GUIDE.md, NOTIFICATION_GUIDE.md release/
 Copy-Item -Recurse "dist/AI News Monitor" release/
 Compress-Archive -Path "release/*" -DestinationPath "AI-News-Monitor-Windows.zip" -Force
