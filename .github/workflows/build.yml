@@ -17,8 +17,8 @@ jobs:
           - os: windows-latest
             artifact: AI-News-Monitor-Windows.zip
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
@@ -29,7 +29,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: .\scripts\build_windows.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
