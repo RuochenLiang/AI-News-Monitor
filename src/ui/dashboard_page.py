@@ -4,10 +4,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QListWidget,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -30,6 +31,10 @@ class DashboardPage(QWidget):
 
         self.labels: dict[str, QLabel] = {}
         self.stat_titles: dict[str, QLabel] = {}
+        self.stat_cards: list[QFrame] = []
+        self.action_buttons: list[QPushButton] = []
+        self._stat_columns = 0
+        self._action_columns = 0
         self.alert_list = QListWidget()
         self.log_list = QListWidget()
         self.health_list = QListWidget()
@@ -38,9 +43,16 @@ class DashboardPage(QWidget):
         for list_widget in (self.alert_list, self.log_list, self.health_list, self.gaps_list):
             list_widget.setWordWrap(True)
             list_widget.setAlternatingRowColors(True)
-            list_widget.setMinimumHeight(260)
+            list_widget.setMinimumHeight(150)
+            list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(14)
         self.title_label = QLabel(text("app_title", self.language))
         self.title_label.setObjectName("PageTitle")
@@ -50,8 +62,8 @@ class DashboardPage(QWidget):
         self.live_banner.setWordWrap(True)
         layout.addWidget(self.live_banner)
 
-        grid = QGridLayout()
-        grid.setSpacing(12)
+        self.stats_grid = QGridLayout()
+        self.stats_grid.setSpacing(12)
         stats = [
             ("state", text("state", self.language)),
             ("active_topics_count", text("active_topics_count", self.language)),
@@ -72,6 +84,7 @@ class DashboardPage(QWidget):
         for index, (key, label_text) in enumerate(stats):
             frame = QFrame()
             frame.setObjectName("StatCard")
+            frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             card_layout = QVBoxLayout(frame)
             card_layout.setContentsMargins(12, 10, 12, 12)
             label = QLabel(label_text)
@@ -84,37 +97,43 @@ class DashboardPage(QWidget):
             card_layout.addWidget(value)
             self.stat_titles[key] = label
             self.labels[key] = value
-            grid.addWidget(frame, index // 5, index % 5)
-        layout.addLayout(grid)
+            self.stat_cards.append(frame)
+            self.stats_grid.addWidget(frame, index // 5, index % 5)
+        layout.addLayout(self.stats_grid)
 
-        buttons = QHBoxLayout()
         self.start_button.setObjectName("PrimaryButton")
         self.test_notification_button.setObjectName("SecondaryButton")
         self.pause_button.setObjectName("SecondaryButton")
         self.resume_button.setObjectName("SecondaryButton")
         self.stop_button.setObjectName("DangerButton")
-        for button in (
+        self.action_buttons = [
             self.start_button,
             self.test_notification_button,
             self.pause_button,
             self.resume_button,
             self.stop_button,
-        ):
-            buttons.addWidget(button)
-        buttons.addStretch(1)
-        layout.addLayout(buttons)
+        ]
+        self.actions_grid = QGridLayout()
+        self.actions_grid.setSpacing(8)
+        for index, button in enumerate(self.action_buttons):
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.actions_grid.addWidget(button, 0, index)
+        layout.addLayout(self.actions_grid)
 
-        body = QSplitter(Qt.Horizontal)
-        body.setChildrenCollapsible(False)
-        body.addWidget(self._feedback_panel("recent_alerts", self.alert_list))
-        body.addWidget(self._feedback_panel("connection_health", self.health_list))
-        body.addWidget(self._feedback_panel("intelligence_gaps", self.gaps_list))
-        body.addWidget(self._feedback_panel("recent_logs", self.log_list))
-        body.setStretchFactor(0, 2)
-        body.setStretchFactor(1, 1)
-        body.setStretchFactor(2, 1)
-        body.setStretchFactor(3, 2)
-        layout.addWidget(body, 2)
+        self.body_splitter = QSplitter(Qt.Horizontal)
+        self.body_splitter.setChildrenCollapsible(True)
+        self.body_splitter.addWidget(self._feedback_panel("recent_alerts", self.alert_list))
+        self.body_splitter.addWidget(self._feedback_panel("connection_health", self.health_list))
+        self.body_splitter.addWidget(self._feedback_panel("intelligence_gaps", self.gaps_list))
+        self.body_splitter.addWidget(self._feedback_panel("recent_logs", self.log_list))
+        self.body_splitter.setStretchFactor(0, 2)
+        self.body_splitter.setStretchFactor(1, 1)
+        self.body_splitter.setStretchFactor(2, 1)
+        self.body_splitter.setStretchFactor(3, 2)
+        layout.addWidget(self.body_splitter, 2)
+        self.scroll.setWidget(content)
+        outer.addWidget(self.scroll)
+        self._apply_adaptive_layout()
         self.apply_language(self.language)
 
     def _feedback_panel(self, label_key: str, list_widget: QListWidget) -> QWidget:
@@ -137,6 +156,42 @@ class DashboardPage(QWidget):
         elif label_key == "recent_logs":
             self.recent_logs_label = label
         return panel
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self._apply_adaptive_layout()
+
+    def _apply_adaptive_layout(self) -> None:
+        viewport_width = self.scroll.viewport().width()
+        width = viewport_width if viewport_width > 0 else self.width()
+        self._set_stat_columns(_dashboard_columns(width))
+        self._set_action_columns(_action_columns(width))
+        narrow = width < 760
+        orientation = Qt.Vertical if narrow else Qt.Horizontal
+        if self.body_splitter.orientation() != orientation:
+            self.body_splitter.setOrientation(orientation)
+            if narrow:
+                self.body_splitter.setSizes([180, 150, 150, 180])
+            else:
+                self.body_splitter.setSizes([320, 220, 220, 320])
+
+    def _set_stat_columns(self, columns: int) -> None:
+        if columns == self._stat_columns:
+            return
+        self._stat_columns = columns
+        for card in self.stat_cards:
+            self.stats_grid.removeWidget(card)
+        for index, card in enumerate(self.stat_cards):
+            self.stats_grid.addWidget(card, index // columns, index % columns)
+
+    def _set_action_columns(self, columns: int) -> None:
+        if columns == self._action_columns:
+            return
+        self._action_columns = columns
+        for button in self.action_buttons:
+            self.actions_grid.removeWidget(button)
+        for index, button in enumerate(self.action_buttons):
+            self.actions_grid.addWidget(button, index // columns, index % columns)
 
     def apply_language(self, language: str) -> None:
         self.language = language
@@ -202,3 +257,25 @@ class DashboardPage(QWidget):
         self.resume_button.setEnabled(status.state == "Paused")
         self.stop_button.setEnabled(status.state in {"Running", "Paused", "Error"})
         self.start_button.setEnabled(status.state in {"Stopped", "Error"})
+
+
+def _dashboard_columns(width: int) -> int:
+    if width >= 1120:
+        return 5
+    if width >= 900:
+        return 4
+    if width >= 660:
+        return 3
+    if width >= 430:
+        return 2
+    return 1
+
+
+def _action_columns(width: int) -> int:
+    if width >= 860:
+        return 5
+    if width >= 560:
+        return 3
+    if width >= 360:
+        return 2
+    return 1

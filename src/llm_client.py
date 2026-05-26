@@ -29,6 +29,7 @@ from src.models import (
 )
 from src.secrets import get_env_secret, sanitize_for_log
 from src.utils.http_utils import request_with_retries
+from src.utils.text_utils import clean_text
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,10 @@ VALID_DIRECTIONS = {"bullish", "bearish", "mixed", "unclear"}
 VALID_CONFIDENCE = {"low", "medium", "high"}
 VALID_RELIABILITY = {"low", "medium", "high"}
 VALID_ACTIONS = {"watch_only", "research_further", "urgent_review", "ignore"}
+ANALYSIS_ARTICLE_LIMIT = 8
+ARTICLE_TITLE_LIMIT = 220
+ARTICLE_SNIPPET_LIMIT = 900
+TRANSLATION_SNIPPET_LIMIT = 700
 
 
 class LLMError(RuntimeError):
@@ -208,6 +213,7 @@ class LLMClient:
     def analyze_article(self, topic: TopicConfig, article: Article) -> LLMAnalysis:
         return self._analyze_messages(
             self._build_messages(topic, [article], event_payload=None),
+            max_tokens=_analysis_token_budget(self.settings.max_tokens, topic, article_count=1),
             fallback_articles=[article],
             fallback_relation_reason="Single source event cluster; no related articles were available in this cycle.",
             fallback_article_count=1,
@@ -216,6 +222,7 @@ class LLMClient:
     def analyze_event_cluster(self, topic: TopicConfig, cluster: EventCluster) -> LLMAnalysis:
         return self._analyze_messages(
             self._build_messages(topic, cluster.articles, event_payload=cluster_to_llm_payload(cluster)),
+            max_tokens=_analysis_token_budget(self.settings.max_tokens, topic, article_count=cluster.article_count),
             fallback_articles=cluster.articles,
             fallback_relation_reason=cluster.relation_reason,
             fallback_article_count=cluster.article_count,
@@ -225,6 +232,7 @@ class LLMClient:
         self,
         messages: list[dict[str, str]],
         *,
+        max_tokens: int,
         fallback_articles: list[Article],
         fallback_relation_reason: str,
         fallback_article_count: int,
@@ -235,6 +243,7 @@ class LLMClient:
         try:
             content = self._chat(
                 messages,
+                max_tokens=max_tokens,
                 response_schema=_analysis_response_schema(),
                 response_name="ai_news_monitor_analysis",
             )
@@ -262,6 +271,7 @@ class LLMClient:
             ]
             content = self._chat(
                 repair_messages,
+                max_tokens=max_tokens,
                 response_schema=_analysis_response_schema(),
                 response_name="ai_news_monitor_analysis_repair",
             )
@@ -291,9 +301,9 @@ class LLMClient:
                     {
                         "target_language": target_language,
                         "source_language": article.language,
-                        "title": article.title,
-                        "snippet": article.snippet,
-                        "required_schema": schema,
+                        "title": _compact_text(article.title, ARTICLE_TITLE_LIMIT),
+                        "snippet": _compact_text(article.snippet, TRANSLATION_SNIPPET_LIMIT),
+                        "required_fields": list(schema),
                     },
                     ensure_ascii=False,
                 ),
@@ -302,7 +312,7 @@ class LLMClient:
         data = _json_from_text(
             self._chat(
                 messages,
-                max_tokens=512,
+                max_tokens=_bounded_token_budget(self.settings.max_tokens, 320),
                 response_schema=_translation_response_schema(),
                 response_name="ai_news_monitor_translation",
             )
@@ -316,60 +326,6 @@ class LLMClient:
         *,
         event_payload: dict[str, Any] | None,
     ) -> list[dict[str, str]]:
-        # Structured Outputs enforces this shape through response_format.json_schema
-        # when the configured provider supports it. The compact schema prompt remains
-        # as compatibility guidance for JSON-object fallback providers.
-        schema = {
-            "relevance_score": 0,
-            "is_actionable_alert": False,
-            "should_notify": False,
-            "event_type": "",
-            "event_title": "",
-            "event_summary": "",
-            "current_status": "",
-            "summary": "",
-            "why_it_matters": "",
-            "timeline": [
-                {
-                    "date": "YYYY-MM-DD or unknown",
-                    "time": "HH:MM or null",
-                    "label": "",
-                    "description": "",
-                    "source_title": "",
-                    "source_url": "",
-                    "confidence": 0.0,
-                }
-            ],
-            "key_facts": [""],
-            "affected_entities": [""],
-            "source_links": [
-                {
-                    "title": "",
-                    "url": "",
-                    "publisher": "",
-                    "published_at": "",
-                }
-            ],
-            "relation_reason": "",
-            "uncertainties": [""],
-            "suggested_actions": [""],
-            "market_watch_suggestions": [
-                {
-                    "ticker": "",
-                    "name_or_theme": "",
-                    "possible_direction": "bullish|bearish|mixed|unclear",
-                    "reason": "",
-                    "confidence": "low|medium|high",
-                }
-            ],
-            "bullish_path": "",
-            "bearish_path": "",
-            "risk_notes": "",
-            "uncertainty_notes": "",
-            "source_reliability": "low|medium|high",
-            "recommended_user_action": "watch_only|research_further|urgent_review|ignore",
-            "notification_title": "",
-        }
         system = (
             "You are an AI news monitoring analyst. You may receive one article or multiple related articles. "
             "Summarize them as one event, not as separate disconnected summaries. Build the timeline only from "
@@ -383,21 +339,22 @@ class LLMClient:
             "use watch_only unless urgency is clearly justified by the sources. Do not provide personalized "
             "financial advice. Return strict JSON only."
         )
+        included_articles = [_article_payload(article) for article in articles[:ANALYSIS_ARTICLE_LIMIT]]
         user = {
             "topic_prompt": topic.prompt,
             "output_language": topic.output_language,
-            "keywords": topic.keywords,
-            "related_stock_watchlist_candidates": topic.related_stocks,
+            "keywords": _limited_strings(topic.keywords, 20),
+            "related_stock_watchlist_candidates": _limited_strings(topic.related_stocks, 20),
             "report_preferences": _topic_report_preferences(topic),
-            "event_cluster": event_payload,
-            "articles": (
-                event_payload["articles"] if event_payload else [_article_payload(article) for article in articles]
-            ),
-            "required_schema": schema,
+            "event_cluster": _compact_event_payload(event_payload) if event_payload else None,
+            "article_count": len(articles),
+            "articles_included": len(included_articles),
+            "articles": included_articles,
+            "output_contract": _analysis_prompt_contract(),
         }
         return [
             {"role": "system", "content": system},
-            {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps(_drop_empty(user), ensure_ascii=False)},
         ]
 
     def _chat(
@@ -480,6 +437,21 @@ class LLMClient:
 
 def _latency_ms(started: float) -> int:
     return int((perf_counter() - started) * 1000)
+
+
+def _bounded_token_budget(configured_max: int, target: int) -> int:
+    return max(1, min(int(configured_max or target), target))
+
+
+def _analysis_token_budget(configured_max: int, topic: TopicConfig, article_count: int) -> int:
+    target = 900 if article_count > 1 else 760
+    if not topic.report_include_timeline:
+        target -= 120
+    if not topic.report_include_source_comparison:
+        target -= 80
+    if not topic.report_include_user_action:
+        target -= 40
+    return _bounded_token_budget(configured_max, max(520, target))
 
 
 def _token_limit_payload(model: str, max_tokens: int) -> dict[str, int]:
@@ -621,6 +593,22 @@ def _translation_response_schema() -> dict[str, Any]:
             "translated_title": {"type": "string"},
             "translated_snippet": {"type": "string"},
             "summary": {"type": "string"},
+        },
+    }
+
+
+def _analysis_prompt_contract() -> dict[str, Any]:
+    schema = _analysis_response_schema()
+    return {
+        "required_fields": schema["required"],
+        "timeline_item_fields": schema["properties"]["timeline"]["items"]["required"],
+        "source_link_fields": schema["properties"]["source_links"]["items"]["required"],
+        "market_watch_fields": schema["properties"]["market_watch_suggestions"]["items"]["required"],
+        "enum_constraints": {
+            "market_watch_suggestions[].possible_direction": sorted(VALID_DIRECTIONS),
+            "market_watch_suggestions[].confidence": sorted(VALID_CONFIDENCE),
+            "source_reliability": sorted(VALID_RELIABILITY),
+            "recommended_user_action": sorted(VALID_ACTIONS),
         },
     }
 
@@ -852,25 +840,79 @@ def _float_between_zero_and_one(value: object) -> float:
 
 
 def _article_payload(article: Article) -> dict[str, Any]:
-    return {
-        "title": article.title,
-        "snippet": article.snippet,
-        "source": article.source,
-        "published_at": article.published_at.isoformat() if article.published_at else None,
-        "url": article.url,
-        "language": article.language,
-        "translated_title": article.translated_title,
-        "translated_snippet": article.translated_snippet,
-        "short_summary": article.short_summary,
-        "source_reliability_score": article.reliability_score,
-        "source_ownership": article.ownership,
-        "source_bias_hint": article.bias_hint,
-        "source_role": article.source_role,
-        "source_tier": article.source_tier,
-        "ranking_score": article.ranking_score,
-        "matched_keywords": article.matched_keywords,
-        "bias_context": (article.raw or {}).get("bias_summary") if article.raw else None,
-    }
+    return _drop_empty(
+        {
+            "title": _compact_text(article.title, ARTICLE_TITLE_LIMIT),
+            "snippet": _compact_text(article.snippet, ARTICLE_SNIPPET_LIMIT),
+            "source": _compact_text(article.source, 120),
+            "published_at": article.published_at.isoformat() if article.published_at else None,
+            "url": article.url,
+            "language": article.language,
+            "translated_title": _compact_text(article.translated_title, ARTICLE_TITLE_LIMIT),
+            "translated_snippet": _compact_text(article.translated_snippet, ARTICLE_SNIPPET_LIMIT),
+            "short_summary": _compact_text(article.short_summary, 520),
+            "source_reliability_score": article.reliability_score,
+            "source_ownership": _compact_text(article.ownership, 160),
+            "source_bias_hint": _compact_text(article.bias_hint, 180),
+            "source_role": article.source_role,
+            "source_tier": article.source_tier,
+            "ranking_score": article.ranking_score,
+            "matched_keywords": _limited_strings(article.matched_keywords, 10),
+            "match_reason": _compact_text(article.match_reason, 220),
+            "selection_reason": _compact_text(article.selection_reason, 220),
+            "bias_context": _compact_text((article.raw or {}).get("bias_summary") if article.raw else None, 420),
+        }
+    )
+
+
+def _compact_event_payload(event_payload: dict[str, Any]) -> dict[str, Any]:
+    timeline = event_payload.get("timeline_seed") or []
+    return _drop_empty(
+        {
+            "cluster_id": event_payload.get("cluster_id"),
+            "title": _compact_text(event_payload.get("title"), ARTICLE_TITLE_LIMIT),
+            "article_count": event_payload.get("article_count"),
+            "relation_reason": _compact_text(event_payload.get("relation_reason"), 420),
+            "confidence": event_payload.get("confidence"),
+            "entities": _limited_strings(event_payload.get("entities"), 12),
+            "earliest_published_at": event_payload.get("earliest_published_at"),
+            "latest_published_at": event_payload.get("latest_published_at"),
+            "timeline_seed": [
+                _drop_empty(
+                    {
+                        "date": item.get("date"),
+                        "time": item.get("time"),
+                        "label": _compact_text(item.get("label"), 140),
+                        "description": _compact_text(item.get("description"), 260),
+                        "source_title": _compact_text(item.get("source_title"), 180),
+                        "source_url": item.get("source_url"),
+                        "confidence": item.get("confidence"),
+                    }
+                )
+                for item in timeline[:6]
+                if isinstance(item, dict)
+            ],
+        }
+    )
+
+
+def _limited_strings(values: object, limit: int) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [clean for value in values[:limit] if (clean := _compact_text(value, 120))]
+
+
+def _compact_text(value: object, max_length: int) -> str:
+    text = clean_text(value)
+    if len(text) <= max_length:
+        return text
+    if max_length <= 3:
+        return text[:max_length]
+    return text[: max_length - 3].rstrip() + "..."
+
+
+def _drop_empty(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if value not in (None, "", [], {})}
 
 
 def _suggestion_from_dict(data: dict[str, Any]) -> MarketWatchSuggestion:

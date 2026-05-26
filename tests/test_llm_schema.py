@@ -201,8 +201,12 @@ def test_translate_and_summarize_uses_structured_response_schema():
 
     result = llm.translate_and_summarize(article, "en")
 
+    user_payload = json.loads(client.requests[0]["json"]["messages"][1]["content"])
     response_format = client.requests[0]["json"]["response_format"]
     assert result == {"translated_title": "Translated", "translated_snippet": "Snippet", "summary": "Summary"}
+    assert client.requests[0]["json"]["max_tokens"] == 320
+    assert user_payload["required_fields"] == ["translated_title", "translated_snippet", "summary"]
+    assert "required_schema" not in user_payload
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["name"] == "ai_news_monitor_translation"
     assert response_format["json_schema"]["schema"] == _translation_response_schema()
@@ -239,6 +243,37 @@ def test_structured_output_unsupported_response_falls_back_to_json_object():
         "json_schema",
         "json_object",
     ]
+
+
+def test_analysis_prompt_uses_compact_contract_and_token_budget():
+    client = RecordingClient([_chat_response(json.dumps(VALID_JSON))])
+    llm = LLMClient(LLMSettings(structured_outputs=True), api_key="test-key", client=client)
+    article = Article(
+        "Long Title",
+        "https://example.com/a",
+        "Example",
+        snippet=" ".join(["word"] * 500),
+        language="en",
+        raw={"bias_summary": " ".join(["bias"] * 200)},
+        matched_keywords=[f"kw-{index}" for index in range(20)],
+    )
+    topic = TopicConfig("Topic", True, "Prompt", ["chip"], related_stocks=["NVDA"])
+
+    llm.analyze_article(topic, article)
+
+    body = client.requests[0]["json"]
+    user_payload = json.loads(body["messages"][1]["content"])
+    first_article = user_payload["articles"][0]
+
+    assert body["max_tokens"] == 760
+    assert "required_schema" not in user_payload
+    assert user_payload["output_contract"]["required_fields"] == _analysis_response_schema()["required"]
+    assert user_payload["article_count"] == 1
+    assert user_payload["articles_included"] == 1
+    assert len(first_article["snippet"]) <= 900
+    assert len(first_article["bias_context"]) <= 420
+    assert len(first_article["matched_keywords"]) == 10
+    assert "translated_title" not in first_article
 
 
 def test_topic_report_style_preferences_are_sent_and_applied_to_analysis():

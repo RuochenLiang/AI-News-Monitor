@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         self.logs = LogsPage(runtime_dir)
         self.tabs = QTabWidget()
         self.tray: QSystemTrayIcon | None = None
+        self.tray_actions: dict[str, QAction] = {}
         self.language = load_config(self.config_path).app.output_language
 
         self._build()
@@ -58,6 +59,8 @@ class MainWindow(QMainWindow):
     def _build(self) -> None:
         self.setWindowTitle(text("app_title", self.language))
         self.resize(1180, 760)
+        self.setMinimumSize(560, 420)
+        self.tabs.setUsesScrollButtons(True)
         self.tabs.addTab(self.dashboard, text("dashboard", self.language))
         self.tabs.addTab(self.topics, text("topics", self.language))
         self.tabs.addTab(self.settings, text("settings", self.language))
@@ -86,6 +89,11 @@ class MainWindow(QMainWindow):
         self.topics.apply_language(language)
         self.settings.apply_language(language)
         self.logs.apply_language(language)
+        for key, action in self.tray_actions.items():
+            action.setText(text(key, language))
+        if self.tray:
+            self.tray.setToolTip(text("app_title", language))
+        self.worker.reload_runtime_settings()
 
     def _setup_tray(self) -> None:
         if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -97,6 +105,13 @@ class MainWindow(QMainWindow):
         resume_action = QAction(text("resume", self.language), self)
         stop_action = QAction(text("stop", self.language), self)
         quit_action = QAction(text("quit", self.language), self)
+        self.tray_actions = {
+            "show_window": show_action,
+            "pause": pause_action,
+            "resume": resume_action,
+            "stop": stop_action,
+            "quit": quit_action,
+        }
         show_action.triggered.connect(self.showNormal)
         pause_action.triggered.connect(self.worker.pause)
         resume_action.triggered.connect(self.worker.resume)

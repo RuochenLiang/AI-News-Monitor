@@ -228,6 +228,7 @@ class SettingsPage(QWidget):
         self.config = load_config(config_path)
         self.language = self.config.app.output_language
         self.env_values = read_env_values(self.env_path)
+        self._loading_fields = False
         self._build_fields()
         self._build_layout()
         self._connect()
@@ -456,9 +457,11 @@ class SettingsPage(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
         content = QWidget()
         layout = QVBoxLayout(content)
         self.settings_tabs = QTabWidget()
+        self.settings_tabs.setUsesScrollButtons(True)
         self.settings_tabs.addTab(self._tab_with(self._language_group()), "General")
         self.settings_tabs.addTab(self._tab_with(self._llm_group()), "LLM")
         self.settings_tabs.addTab(self._tab_with(self._alerts_group()), "Alerts")
@@ -523,6 +526,7 @@ class SettingsPage(QWidget):
                 self.settings_tabs.setTabText(index, text(key, language))
         self._translate_static_widgets(language)
         self._translate_placeholders(language)
+        self._translate_language_combos(language)
 
     def _tab_with(self, *widgets: QWidget) -> QWidget:
         tab = QWidget()
@@ -531,6 +535,16 @@ class SettingsPage(QWidget):
             layout.addWidget(widget)
         layout.addStretch(1)
         return tab
+
+    def _form_layout(self, parent: QWidget | None = None) -> QFormLayout:
+        form = QFormLayout(parent)
+        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        form.setFormAlignment(Qt.AlignTop)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
+        return form
 
     def _translate_static_widgets(self, language: str) -> None:
         mapping = _static_text_mapping(language)
@@ -561,7 +575,7 @@ class SettingsPage(QWidget):
 
     def _language_group(self) -> QGroupBox:
         group = QGroupBox("Language, Translation, and Bias")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("Global Output Language", self.output_language)
         form.addRow("", self.translation_enabled)
         form.addRow("Translation Target Language", self.translation_target)
@@ -573,7 +587,7 @@ class SettingsPage(QWidget):
 
     def _llm_group(self) -> QGroupBox:
         group = QGroupBox("LLM Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("Mode", self.llm_preset)
         form.addRow("Primary Provider", self.llm_provider)
         form.addRow("Fallback Providers", self.llm_fallback_providers)
@@ -588,7 +602,7 @@ class SettingsPage(QWidget):
         form.addRow("Max Retries", self.llm_max_retries)
         form.addRow("Retry Backoff Seconds", self.llm_retry_backoff)
         deepseek_group = QGroupBox("DeepSeek Fallback Provider")
-        deepseek_form = QFormLayout(deepseek_group)
+        deepseek_form = self._form_layout(deepseek_group)
         deepseek_form.addRow("", self.deepseek_enabled)
         deepseek_form.addRow("DeepSeek Model", self.deepseek_model)
         deepseek_form.addRow("DeepSeek API Key", self.deepseek_api_key)
@@ -606,7 +620,7 @@ class SettingsPage(QWidget):
 
     def _alerts_group(self) -> QGroupBox:
         group = QGroupBox("Alert Mode, Routing, and Quality Scoring")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("Default Alert Mode", self.alert_mode)
         form.addRow("", self.fallback_enabled)
         form.addRow("Fallback Order", self.fallback_order)
@@ -627,7 +641,7 @@ class SettingsPage(QWidget):
 
     def _email_group(self) -> QGroupBox:
         group = QGroupBox("Email Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("", self.email_enabled)
         form.addRow("Mode", self.email_preset)
         form.addRow("SMTP Host", self.email_host)
@@ -647,7 +661,7 @@ class SettingsPage(QWidget):
 
     def _wecom_group(self) -> QGroupBox:
         group = QGroupBox("WeCom Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("", self.wecom_enabled)
         form.addRow("Mode", self.wecom_preset)
         form.addRow("Webhook URL", self.wecom_url)
@@ -657,7 +671,7 @@ class SettingsPage(QWidget):
 
     def _relay_group(self) -> QGroupBox:
         group = QGroupBox("WeChat / QQ Relay Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         warning = QLabel(
             "Third-party relay services such as ServerChan, Chanify, and Qmsg receive notification content; check their privacy, availability, and rate limits."
         )
@@ -677,7 +691,7 @@ class SettingsPage(QWidget):
 
     def _telegram_group(self) -> QGroupBox:
         group = QGroupBox("Telegram Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("", self.telegram_enabled)
         form.addRow("Mode", self.telegram_preset)
         form.addRow("Bot Token", self.telegram_token)
@@ -692,7 +706,7 @@ class SettingsPage(QWidget):
 
     def _webhook_group(self) -> QGroupBox:
         group = QGroupBox("Generic Webhook Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("", self.webhook_enabled)
         form.addRow("Mode", self.webhook_preset)
         form.addRow("Webhook URL", self.webhook_url)
@@ -718,7 +732,7 @@ class SettingsPage(QWidget):
             self.source_official,
         ):
             layout.addWidget(checkbox)
-        form = QFormLayout()
+        form = self._form_layout()
         form.addRow("Global Public RSS (one per line)", self.global_public_urls)
         form.addRow("Global Official RSS (one per line)", self.global_official_urls)
         form.addRow("Enabled Packages (one per line)", self.source_packages)
@@ -744,7 +758,7 @@ class SettingsPage(QWidget):
 
     def _social_sources_group(self) -> QGroupBox:
         group = QGroupBox("X.com Social Source")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("", self.x_enabled)
         form.addRow("X Bearer Token", self.x_bearer_token)
         form.addRow("Max Posts per Topic per Run", self.x_max_posts)
@@ -760,7 +774,7 @@ class SettingsPage(QWidget):
 
     def _runtime_group(self) -> QGroupBox:
         group = QGroupBox("Runtime Settings")
-        form = QFormLayout(group)
+        form = self._form_layout(group)
         form.addRow("Default Poll Interval Seconds", self.default_interval)
         form.addRow("Default Relevance Threshold", self.min_relevance_score)
         form.addRow("Max Alerts per Hour", self.max_alerts_per_hour)
@@ -784,6 +798,7 @@ class SettingsPage(QWidget):
         self.test_telegram_button.clicked.connect(lambda: self.test_single("telegram"))
         self.test_webhook_button.clicked.connect(lambda: self.test_single("generic_webhook"))
         self.bridge.test_result.connect(self._show_test_result)
+        self.output_language.currentTextChanged.connect(self._language_selection_changed)
         self.llm_preset.currentIndexChanged.connect(self._apply_preset_states)
         self.email_preset.currentIndexChanged.connect(self._apply_preset_states)
         self.wecom_preset.currentIndexChanged.connect(self._apply_preset_states)
@@ -806,128 +821,136 @@ class SettingsPage(QWidget):
         self.rss_help_button.clicked.connect(lambda: self._open_help("rss"))
 
     def load_into_fields(self) -> None:
+        self._loading_fields = True
         config = self.config
-        self.output_language.setCurrentText(_language_label(config.app.output_language))
-        self.translation_enabled.setChecked(config.enrichment.translation_enabled)
-        self.translation_target.setCurrentText(_language_label(config.enrichment.target_language))
-        self.summary_enabled.setChecked(config.enrichment.summary_enabled)
-        self.bias_enabled.setChecked(config.bias.enabled)
-        self.bias_mode.setCurrentText("Same-event Cluster" if config.bias.mode == "cluster" else "Single-source Hint")
-        self.bias_min_cluster.setValue(config.bias.min_cluster_size)
-        self.alert_mode.setCurrentText(
-            "Full Analysis" if config.alerts.default_mode == "full_analysis" else "Fast Alert"
-        )
-        self.fallback_enabled.setChecked(config.notifications.fallback_enabled)
-        self.fallback_order.setText(", ".join(config.notifications.fallback_order))
-        self.retry_attempts.setValue(config.notifications.retry_attempts)
-        self.retry_base_delay.setValue(config.notifications.retry_base_delay_seconds)
-        self.quality_official_boost.setValue(config.quality.official_source_boost)
-        self.quality_company_ir_boost.setValue(config.quality.company_ir_boost)
-        self.quality_multi_boost.setValue(config.quality.multi_source_confirmation_boost)
-        self.quality_low_penalty.setValue(config.quality.low_quality_source_penalty)
-        self.quality_duplicate_penalty.setValue(config.quality.duplicate_rewrite_penalty)
-        self.quality_cluster_strength_boost.setValue(config.quality.event_cluster_strength_boost)
-        self.quality_whitelist_boost.setValue(config.quality.whitelist_boost)
-        self.quality_blacklist_exclude.setChecked(config.quality.blacklist_exclude)
-        self.quality_whitelist_sources.setPlainText("\n".join(config.quality.whitelist_sources))
-        self.quality_blacklist_sources.setPlainText("\n".join(config.quality.blacklist_sources))
-        self.quality_category_priority.setPlainText(
-            "\n".join(f"{key}: {value}" for key, value in config.quality.category_priority.items())
-        )
+        try:
+            self.output_language.setCurrentText(_language_label(config.app.output_language))
+            self.translation_enabled.setChecked(config.enrichment.translation_enabled)
+            self.translation_target.setCurrentText(_language_label(config.enrichment.target_language))
+            self.summary_enabled.setChecked(config.enrichment.summary_enabled)
+            self.bias_enabled.setChecked(config.bias.enabled)
+            self.bias_mode.setCurrentText(
+                "Same-event Cluster" if config.bias.mode == "cluster" else "Single-source Hint"
+            )
+            self.bias_min_cluster.setValue(config.bias.min_cluster_size)
+            self.alert_mode.setCurrentText(
+                "Full Analysis" if config.alerts.default_mode == "full_analysis" else "Fast Alert"
+            )
+            self.fallback_enabled.setChecked(config.notifications.fallback_enabled)
+            self.fallback_order.setText(", ".join(config.notifications.fallback_order))
+            self.retry_attempts.setValue(config.notifications.retry_attempts)
+            self.retry_base_delay.setValue(config.notifications.retry_base_delay_seconds)
+            self.quality_official_boost.setValue(config.quality.official_source_boost)
+            self.quality_company_ir_boost.setValue(config.quality.company_ir_boost)
+            self.quality_multi_boost.setValue(config.quality.multi_source_confirmation_boost)
+            self.quality_low_penalty.setValue(config.quality.low_quality_source_penalty)
+            self.quality_duplicate_penalty.setValue(config.quality.duplicate_rewrite_penalty)
+            self.quality_cluster_strength_boost.setValue(config.quality.event_cluster_strength_boost)
+            self.quality_whitelist_boost.setValue(config.quality.whitelist_boost)
+            self.quality_blacklist_exclude.setChecked(config.quality.blacklist_exclude)
+            self.quality_whitelist_sources.setPlainText("\n".join(config.quality.whitelist_sources))
+            self.quality_blacklist_sources.setPlainText("\n".join(config.quality.blacklist_sources))
+            self.quality_category_priority.setPlainText(
+                "\n".join(f"{key}: {value}" for key, value in config.quality.category_priority.items())
+            )
 
-        self.llm_preset.setCurrentText(_preset_label(config.llm.preset))
-        self.llm_provider.setCurrentText(config.llm.provider)
-        self.llm_fallback_providers.setText(", ".join(config.llm.fallback_providers))
-        self.llm_base_url.setText(config.llm.base_url)
-        self.llm_model.setText(config.llm.model)
-        self.llm_api_key.setText(self.env_values.get(config.llm.api_key_env, ""))
-        self.llm_max_tokens.setValue(config.llm.max_tokens)
-        self.llm_temperature.setValue(config.llm.temperature)
-        self.llm_top_p.setValue(config.llm.top_p)
-        self.llm_presence_penalty.setValue(config.llm.presence_penalty)
-        self.llm_timeout.setValue(config.llm.timeout_seconds)
-        self.llm_max_retries.setValue(config.llm.max_retries)
-        self.llm_retry_backoff.setValue(config.llm.retry_backoff_seconds)
-        deepseek = _llm_provider_settings(config.llm.providers, "deepseek")
-        self.deepseek_enabled.setChecked(deepseek.enabled)
-        self.deepseek_model.setText(deepseek.model)
-        self.deepseek_api_key.setText(self.env_values.get(deepseek.api_key_env, ""))
-        self.deepseek_timeout.setValue(deepseek.timeout_seconds)
-        self.deepseek_max_retries.setValue(deepseek.max_retries)
-        self.deepseek_retry_backoff.setValue(deepseek.retry_backoff_seconds)
+            self.llm_preset.setCurrentText(_preset_label(config.llm.preset))
+            self.llm_provider.setCurrentText(config.llm.provider)
+            self.llm_fallback_providers.setText(", ".join(config.llm.fallback_providers))
+            self.llm_base_url.setText(config.llm.base_url)
+            self.llm_model.setText(config.llm.model)
+            self.llm_api_key.setText(self.env_values.get(config.llm.api_key_env, ""))
+            self.llm_max_tokens.setValue(config.llm.max_tokens)
+            self.llm_temperature.setValue(config.llm.temperature)
+            self.llm_top_p.setValue(config.llm.top_p)
+            self.llm_presence_penalty.setValue(config.llm.presence_penalty)
+            self.llm_timeout.setValue(config.llm.timeout_seconds)
+            self.llm_max_retries.setValue(config.llm.max_retries)
+            self.llm_retry_backoff.setValue(config.llm.retry_backoff_seconds)
+            deepseek = _llm_provider_settings(config.llm.providers, "deepseek")
+            self.deepseek_enabled.setChecked(deepseek.enabled)
+            self.deepseek_model.setText(deepseek.model)
+            self.deepseek_api_key.setText(self.env_values.get(deepseek.api_key_env, ""))
+            self.deepseek_timeout.setValue(deepseek.timeout_seconds)
+            self.deepseek_max_retries.setValue(deepseek.max_retries)
+            self.deepseek_retry_backoff.setValue(deepseek.retry_backoff_seconds)
 
-        email = config.notifiers.email
-        self.email_enabled.setChecked(email.enabled)
-        self.email_preset.setCurrentText(_preset_label(email.preset))
-        self.email_host.setText(email.smtp_host)
-        self.email_port.setValue(email.smtp_port)
-        self.email_tls.setChecked(email.use_tls)
-        self.email_username.setText(self.env_values.get(email.username_env, ""))
-        self.email_password.setText(self.env_values.get(email.password_env, ""))
-        self.email_from.setText(self.env_values.get(email.from_addr_env, ""))
-        self.email_to.setPlainText("\n".join(email.to_addrs))
+            email = config.notifiers.email
+            self.email_enabled.setChecked(email.enabled)
+            self.email_preset.setCurrentText(_preset_label(email.preset))
+            self.email_host.setText(email.smtp_host)
+            self.email_port.setValue(email.smtp_port)
+            self.email_tls.setChecked(email.use_tls)
+            self.email_username.setText(self.env_values.get(email.username_env, ""))
+            self.email_password.setText(self.env_values.get(email.password_env, ""))
+            self.email_from.setText(self.env_values.get(email.from_addr_env, ""))
+            self.email_to.setPlainText("\n".join(email.to_addrs))
 
-        self.wecom_enabled.setChecked(config.notifiers.wecom.enabled)
-        self.wecom_preset.setCurrentText(_preset_label(config.notifiers.wecom.preset))
-        self.wecom_url.setText(self.env_values.get(config.notifiers.wecom.webhook_url_env, ""))
+            self.wecom_enabled.setChecked(config.notifiers.wecom.enabled)
+            self.wecom_preset.setCurrentText(_preset_label(config.notifiers.wecom.preset))
+            self.wecom_url.setText(self.env_values.get(config.notifiers.wecom.webhook_url_env, ""))
 
-        self.wechat_enabled.setChecked(config.notifiers.wechat.enabled)
-        self.wechat_provider.setCurrentText(config.notifiers.wechat.provider)
-        self.wechat_url.setText(self.env_values.get(config.notifiers.wechat.webhook_url_env, ""))
+            self.wechat_enabled.setChecked(config.notifiers.wechat.enabled)
+            self.wechat_provider.setCurrentText(config.notifiers.wechat.provider)
+            self.wechat_url.setText(self.env_values.get(config.notifiers.wechat.webhook_url_env, ""))
 
-        self.qq_enabled.setChecked(config.notifiers.qq.enabled)
-        self.qq_provider.setCurrentText(
-            config.notifiers.qq.provider if config.notifiers.qq.provider != "qmsg" else "qmsg"
-        )
-        self.qq_url.setText(self.env_values.get(config.notifiers.qq.webhook_url_env, ""))
+            self.qq_enabled.setChecked(config.notifiers.qq.enabled)
+            self.qq_provider.setCurrentText(
+                config.notifiers.qq.provider if config.notifiers.qq.provider != "qmsg" else "qmsg"
+            )
+            self.qq_url.setText(self.env_values.get(config.notifiers.qq.webhook_url_env, ""))
 
-        self.telegram_enabled.setChecked(config.notifiers.telegram.enabled)
-        self.telegram_preset.setCurrentText(_preset_label(config.notifiers.telegram.preset))
-        self.telegram_token.setText(self.env_values.get(config.notifiers.telegram.bot_token_env, ""))
-        self.telegram_chat_id.setText(self.env_values.get(config.notifiers.telegram.chat_id_env, ""))
+            self.telegram_enabled.setChecked(config.notifiers.telegram.enabled)
+            self.telegram_preset.setCurrentText(_preset_label(config.notifiers.telegram.preset))
+            self.telegram_token.setText(self.env_values.get(config.notifiers.telegram.bot_token_env, ""))
+            self.telegram_chat_id.setText(self.env_values.get(config.notifiers.telegram.chat_id_env, ""))
 
-        generic = config.notifiers.generic_webhook
-        self.webhook_enabled.setChecked(generic.enabled)
-        self.webhook_preset.setCurrentText(_preset_label(generic.preset))
-        self.webhook_url.setText(self.env_values.get(generic.url_env, ""))
-        self.webhook_method.setCurrentText(generic.method)
-        self.webhook_headers.setPlainText("\n".join(f"{key}: {value}" for key, value in generic.headers.items()))
-        self.webhook_body_template.setPlainText(generic.body_template)
+            generic = config.notifiers.generic_webhook
+            self.webhook_enabled.setChecked(generic.enabled)
+            self.webhook_preset.setCurrentText(_preset_label(generic.preset))
+            self.webhook_url.setText(self.env_values.get(generic.url_env, ""))
+            self.webhook_method.setCurrentText(generic.method)
+            self.webhook_headers.setPlainText(
+                "\n".join(f"{key}: {value}" for key, value in generic.headers.items())
+            )
+            self.webhook_body_template.setPlainText(generic.body_template)
 
-        self.default_interval.setValue(config.monitor.default_interval_seconds)
-        self.min_relevance_score.setValue(config.monitor.min_relevance_score)
-        self.max_alerts_per_hour.setValue(config.monitor.max_alerts_per_hour)
-        self.dedupe_hours.setValue(config.monitor.deduplicate_hours)
-        self.request_timeout.setValue(config.monitor.request_timeout_seconds)
-        self.log_retention_days.setValue(config.monitor.log_retention_days)
-        self.run_minimized_to_tray.setChecked(config.app.run_minimized_to_tray)
-        self.local_server_enabled.setChecked(config.local_server.enabled)
-        self.local_server_port.setValue(config.local_server.port)
-        self.local_server_lan.setChecked(config.local_server.allow_lan)
-        self.ui_debug_mode.setChecked(config.ui.debug_mode)
-        self.source_gdelt.setChecked(config.sources.gdelt.enabled)
-        self.source_google.setChecked(config.sources.google_news_rss.enabled)
-        self.source_yahoo.setChecked(config.sources.yahoo_finance_rss.enabled)
-        self.source_public.setChecked(config.sources.public_rss.enabled)
-        self.source_official.setChecked(config.sources.official_rss.enabled)
-        self.source_packages.setPlainText("\n".join(config.sources.enabled_packages))
-        self.global_public_urls.setPlainText("\n".join(config.sources.public_rss.urls))
-        self.global_official_urls.setPlainText("\n".join(config.sources.official_rss.urls))
-        x = config.social_sources.x
-        self.x_enabled.setChecked(x.enabled)
-        self.x_bearer_token.setText(self.env_values.get(x.bearer_token_env, ""))
-        self.x_max_posts.setValue(x.max_posts_per_topic_per_run)
-        self.x_include_retweets.setChecked(x.include_retweets)
-        self.x_min_author_followers.setValue(x.min_author_followers or 0)
-        self.x_trusted_accounts.setPlainText("\n".join(x.trusted_accounts))
-        self.x_blocked_accounts.setPlainText("\n".join(x.blocked_accounts))
-        self.x_recent_days.setValue(x.search_recent_days_limit)
-        self.x_cost_guard_enabled.setChecked(x.cost_guard.enabled)
-        self.x_daily_max_read_posts.setValue(x.cost_guard.daily_max_read_posts)
-        self.x_warn_percent.setValue(x.cost_guard.warn_when_reaching_percent)
-        self._render_source_library(config.sources.library)
-        self._render_custom_sources(config.sources.custom_sources)
-        self._apply_preset_states()
+            self.default_interval.setValue(config.monitor.default_interval_seconds)
+            self.min_relevance_score.setValue(config.monitor.min_relevance_score)
+            self.max_alerts_per_hour.setValue(config.monitor.max_alerts_per_hour)
+            self.dedupe_hours.setValue(config.monitor.deduplicate_hours)
+            self.request_timeout.setValue(config.monitor.request_timeout_seconds)
+            self.log_retention_days.setValue(config.monitor.log_retention_days)
+            self.run_minimized_to_tray.setChecked(config.app.run_minimized_to_tray)
+            self.local_server_enabled.setChecked(config.local_server.enabled)
+            self.local_server_port.setValue(config.local_server.port)
+            self.local_server_lan.setChecked(config.local_server.allow_lan)
+            self.ui_debug_mode.setChecked(config.ui.debug_mode)
+            self.source_gdelt.setChecked(config.sources.gdelt.enabled)
+            self.source_google.setChecked(config.sources.google_news_rss.enabled)
+            self.source_yahoo.setChecked(config.sources.yahoo_finance_rss.enabled)
+            self.source_public.setChecked(config.sources.public_rss.enabled)
+            self.source_official.setChecked(config.sources.official_rss.enabled)
+            self.source_packages.setPlainText("\n".join(config.sources.enabled_packages))
+            self.global_public_urls.setPlainText("\n".join(config.sources.public_rss.urls))
+            self.global_official_urls.setPlainText("\n".join(config.sources.official_rss.urls))
+            x = config.social_sources.x
+            self.x_enabled.setChecked(x.enabled)
+            self.x_bearer_token.setText(self.env_values.get(x.bearer_token_env, ""))
+            self.x_max_posts.setValue(x.max_posts_per_topic_per_run)
+            self.x_include_retweets.setChecked(x.include_retweets)
+            self.x_min_author_followers.setValue(x.min_author_followers or 0)
+            self.x_trusted_accounts.setPlainText("\n".join(x.trusted_accounts))
+            self.x_blocked_accounts.setPlainText("\n".join(x.blocked_accounts))
+            self.x_recent_days.setValue(x.search_recent_days_limit)
+            self.x_cost_guard_enabled.setChecked(x.cost_guard.enabled)
+            self.x_daily_max_read_posts.setValue(x.cost_guard.daily_max_read_posts)
+            self.x_warn_percent.setValue(x.cost_guard.warn_when_reaching_percent)
+            self._render_source_library(config.sources.library)
+            self._render_custom_sources(config.sources.custom_sources)
+            self._apply_preset_states()
+        finally:
+            self._loading_fields = False
 
     def save_settings(self, silent: bool = False) -> bool:
         try:
@@ -1057,7 +1080,9 @@ class SettingsPage(QWidget):
             self.config = config
             self._write_env_from_fields(config)
             load_env_file(self.env_path)
-            self.bridge.language_changed.emit(config.app.output_language)
+            self.language = config.app.output_language
+            self.apply_language(self.language)
+            self.bridge.language_changed.emit(self.language)
             if not silent:
                 show_info(self, text("saved_title", self.language), text("settings.saved_message", self.language))
             return True
@@ -1197,6 +1222,68 @@ class SettingsPage(QWidget):
             self.webhook_headers.clear()
             self.webhook_body_template.setPlainText("default")
 
+    def _language_selection_changed(self, label: str) -> None:
+        if self._loading_fields:
+            return
+        language = _language_value(label)
+        if language == self.config.app.output_language:
+            self.apply_language(language)
+            return
+        if self._save_language_only(language):
+            self._set_language_combo_value(self.translation_target, language, self.language)
+            self.apply_language(language)
+            self.bridge.language_changed.emit(language)
+
+    def _save_language_only(self, language: str) -> bool:
+        try:
+            config = load_config(self.config_path)
+            config.app.output_language = language
+            config.enrichment.target_language = language
+            for topic in config.topics:
+                topic.output_language = language
+            validate_config(config)
+            save_config(config, self.config_path)
+            self.config = config
+            self.language = language
+            return True
+        except (ConfigError, ValueError) as exc:
+            show_error(self, text("settings.invalid_settings_title", self.language), str(exc))
+            return False
+
+    def _translate_language_combos(self, language: str) -> None:
+        self._set_language_combo_value(
+            self.output_language,
+            _language_value(self.output_language.currentText()),
+            language,
+        )
+        self._set_language_combo_value(
+            self.translation_target,
+            _language_value(self.translation_target.currentText()),
+            language,
+        )
+        custom_language = self.custom_source_language.currentText()
+        custom_value = None if _is_auto_language_label(custom_language) else _language_value(custom_language)
+        self._set_language_combo_value(self.custom_source_language, custom_value, language, include_auto=True)
+
+    def _set_language_combo_value(
+        self,
+        combo: QComboBox,
+        value: str | None,
+        language: str,
+        *,
+        include_auto: bool = False,
+    ) -> None:
+        previous = combo.blockSignals(True)
+        try:
+            combo.clear()
+            if include_auto:
+                combo.addItem(text("auto", language))
+            combo.addItems([_language_label("zh-CN", language), _language_label("en", language)])
+            target = text("auto", language) if value is None else _language_label(value, language)
+            combo.setCurrentText(target)
+        finally:
+            combo.blockSignals(previous)
+
     def _render_source_library(self, sources: list[SourceLibraryItem]) -> None:
         self.source_library.clear()
         for source in sources:
@@ -1303,7 +1390,11 @@ class SettingsPage(QWidget):
         self.custom_sources.clear()
         for source in sources:
             enabled = "Enabled" if source.enabled else "Disabled"
-            language = _language_label(source.default_language) if source.default_language else "Auto"
+            language = (
+                _language_label(source.default_language, self.language)
+                if source.default_language
+                else text("auto", self.language)
+            )
             self.custom_sources.addItem(
                 f"{enabled} | {source.name} | {source.url} | {source.reliability_score:.2f} | "
                 f"{source.ownership or ''} | {source.bias_hint or ''} | {language}"
@@ -1317,7 +1408,11 @@ class SettingsPage(QWidget):
                 reliability = float(parts[3]) if len(parts) > 3 and parts[3] else 0.6
                 ownership = parts[4] if len(parts) > 4 and parts[4] else None
                 bias_hint = parts[5] if len(parts) > 5 and parts[5] else None
-                language = _language_value(parts[6]) if len(parts) > 6 and parts[6] != "Auto" else None
+                language = (
+                    _language_value(parts[6])
+                    if len(parts) > 6 and not _is_auto_language_label(parts[6])
+                    else None
+                )
                 sources.append(
                     CustomNewsSourceConfig(
                         name=parts[1],
@@ -1440,12 +1535,31 @@ def _sync_primary_llm_settings(config) -> None:
     config.llm.structured_outputs = provider.structured_outputs
 
 
-def _language_label(value: str | None) -> str:
-    return "English" if value == "en" else "Simplified Chinese"
+def _language_label(value: str | None, language: str | None = None) -> str:
+    return text("language_en", language or "en") if value == "en" else text("language_zh_cn", language or "en")
 
 
 def _language_value(label: str) -> str:
-    return "en" if label == "English" else "zh-CN"
+    value = label.strip()
+    normalized = value.replace("_", "-").casefold()
+    english_labels = {"en", "english", text("language_en", "en").casefold(), text("language_en", "zh-CN").casefold()}
+    chinese_labels = {
+        "zh-cn",
+        "zh",
+        "simplified chinese",
+        text("language_zh_cn", "en").casefold(),
+        text("language_zh_cn", "zh-CN").casefold(),
+    }
+    if normalized in english_labels:
+        return "en"
+    if normalized in chinese_labels:
+        return "zh-CN"
+    return "zh-CN"
+
+
+def _is_auto_language_label(label: str) -> bool:
+    normalized = label.strip().casefold()
+    return normalized in {"auto", text("auto", "en").casefold(), text("auto", "zh-CN").casefold()}
 
 
 def _lines(text: str) -> list[str]:

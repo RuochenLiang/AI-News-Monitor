@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QTextEdit, QVBoxLayout, QWidget
 
 from src.i18n import text
 
@@ -21,7 +21,8 @@ class LogsPage(QWidget):
         self.text = QTextEdit()
         self.text.setReadOnly(True)
         self.text.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.text.setMinimumHeight(520)
+        self.text.setMinimumHeight(220)
+        self.text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)

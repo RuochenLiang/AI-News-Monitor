@@ -57,6 +57,7 @@
   "all": "All",
   "open_logs": "Open Logs Folder",
   "enabled": "Enabled",
+  "auto": "Auto",
   "allow_broad_search": "Allow Broad Search Without Keywords",
   "default": "Default",
   "none": "None",

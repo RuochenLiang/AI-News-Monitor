@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
     QTabWidget,
@@ -87,8 +88,8 @@ class TopicsPage(QWidget):
             self.source_preview,
         ):
             editor.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.prompt.setMinimumHeight(150)
-        self.source_preview.setMinimumHeight(190)
+        self.prompt.setMinimumHeight(120)
+        self.source_preview.setMinimumHeight(150)
 
         self._build_layout()
         self._connect()
@@ -100,8 +101,11 @@ class TopicsPage(QWidget):
         self.title_label.setObjectName("PageTitle")
         layout.addWidget(self.title_label)
 
-        splitter = QSplitter()
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.setChildrenCollapsible(True)
         left = QWidget()
+        left.setMinimumWidth(0)
+        left.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(left)
         left_layout.addWidget(self.topic_list)
         left_buttons = QHBoxLayout()
@@ -111,6 +115,8 @@ class TopicsPage(QWidget):
 
         self.row_labels: dict[str, QLabel] = {}
         right = QWidget()
+        right.setMinimumWidth(0)
+        right.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         self.topic_tabs = QTabWidget()
@@ -124,10 +130,11 @@ class TopicsPage(QWidget):
         footer.addWidget(self.save_button)
         right_layout.addLayout(footer)
 
-        splitter.addWidget(left)
-        splitter.addWidget(right)
-        splitter.setSizes([250, 700])
-        layout.addWidget(splitter, 1)
+        self.splitter.addWidget(left)
+        self.splitter.addWidget(right)
+        self.splitter.setSizes([250, 700])
+        layout.addWidget(self.splitter, 1)
+        self._apply_adaptive_layout()
 
     def _definition_form(self) -> QWidget:
         tab = QWidget()
@@ -171,6 +178,7 @@ class TopicsPage(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form.setFormAlignment(Qt.AlignTop)
+        form.setRowWrapPolicy(QFormLayout.WrapLongRows)
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
         return form
@@ -179,8 +187,21 @@ class TopicsPage(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
+        content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         scroll.setWidget(content)
         return scroll
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self._apply_adaptive_layout()
+
+    def _apply_adaptive_layout(self) -> None:
+        narrow = self.width() < 760
+        orientation = Qt.Vertical if narrow else Qt.Horizontal
+        if self.splitter.orientation() == orientation:
+            return
+        self.splitter.setOrientation(orientation)
+        self.splitter.setSizes([220, 520] if narrow else [250, 700])
 
     def _connect(self) -> None:
         self.topic_list.currentRowChanged.connect(self._load_selected)

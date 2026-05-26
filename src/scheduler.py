@@ -54,6 +54,24 @@ class MonitorWorker:
         self._ensure_event_server()
         self._emit()
 
+    def reload_runtime_settings(self) -> None:
+        try:
+            config = load_config(self.config_path)
+        except Exception as exc:  # noqa: BLE001 - UI language changes should not interrupt monitoring
+            logger.warning("Could not reload runtime settings: %s", exc)
+            return
+        self._apply_runtime_config_to_status(config)
+        self._emit()
+        if self._event_server:
+            self._publish_event(
+                {
+                    "type": "status",
+                    "status": self.status.state,
+                    "output_language": self.status.output_language,
+                    "alert_mode": self.status.alert_mode,
+                }
+            )
+
     def pause(self) -> None:
         self._pause_event.set()
         self.status.state = "Paused"
@@ -154,9 +172,20 @@ class MonitorWorker:
         self.status.state = state
         if self._event_server:
             self.status.local_server_url = self._event_server.url
+        try:
+            self._apply_runtime_config_to_status(load_config(self.config_path))
+        except Exception as exc:  # noqa: BLE001 - stale runtime settings are preferable to dropping status
+            logger.debug("Could not refresh runtime settings from config: %s", exc)
         self.status.live_event_count = self.broker.event_count
         self._emit()
-        self._publish_event({"type": "status", "status": self.status.state})
+        self._publish_event(
+            {
+                "type": "status",
+                "status": self.status.state,
+                "output_language": self.status.output_language,
+                "alert_mode": self.status.alert_mode,
+            }
+        )
 
     def _emit(self) -> None:
         if self.status_callback:
@@ -170,10 +199,7 @@ class MonitorWorker:
             return
         if not config.local_server.enabled or not config.local_server.sse_enabled:
             return
-        self.status.output_language = config.app.output_language
-        self.status.alert_mode = config.alerts.default_mode
-        self.status.ui_debug_mode = config.ui.debug_mode
-        self.status.source_packages_enabled = list(config.sources.enabled_packages)
+        self._apply_runtime_config_to_status(config)
         if self._event_server:
             return
         self._event_server = LocalEventServer(
@@ -207,6 +233,12 @@ class MonitorWorker:
         if self._event_server:
             self._event_server.stop()
             self._event_server = None
+
+    def _apply_runtime_config_to_status(self, config) -> None:
+        self.status.output_language = config.app.output_language
+        self.status.alert_mode = config.alerts.default_mode
+        self.status.ui_debug_mode = config.ui.debug_mode
+        self.status.source_packages_enabled = list(config.sources.enabled_packages)
 
     def _publish_event(self, event: dict) -> None:
         self.broker.publish(event)

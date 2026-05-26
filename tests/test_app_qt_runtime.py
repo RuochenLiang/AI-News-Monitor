@@ -86,6 +86,41 @@ def test_settings_page_static_text_keys_exist():
     assert result.returncode == 0, result.stderr + result.stdout
 
 
+def test_desktop_sources_keep_window_adaptation_hooks():
+    dashboard = (ROOT / "src" / "ui" / "dashboard_page.py").read_text(encoding="utf-8")
+    topics = (ROOT / "src" / "ui" / "topics_page.py").read_text(encoding="utf-8")
+    settings = (ROOT / "src" / "ui" / "settings_page.py").read_text(encoding="utf-8")
+    logs = (ROOT / "src" / "ui" / "logs_page.py").read_text(encoding="utf-8")
+
+    assert "def _dashboard_columns" in dashboard
+    assert "def _action_columns" in dashboard
+    assert "self.body_splitter.setOrientation(orientation)" in dashboard
+    assert "Qt.Vertical if narrow else Qt.Horizontal" in dashboard
+    assert "form.setRowWrapPolicy(QFormLayout.WrapLongRows)" in topics
+    assert "self.splitter.setOrientation(orientation)" in topics
+    assert "form.setRowWrapPolicy(QFormLayout.WrapLongRows)" in settings
+    assert "self.settings_tabs.setUsesScrollButtons(True)" in settings
+    assert "self.text.setMinimumHeight(220)" in logs
+
+
+def test_desktop_sources_keep_language_refresh_hooks():
+    settings = (ROOT / "src" / "ui" / "settings_page.py").read_text(encoding="utf-8")
+    main_window = (ROOT / "src" / "ui" / "main_window.py").read_text(encoding="utf-8")
+    scheduler = (ROOT / "src" / "scheduler.py").read_text(encoding="utf-8")
+    realtime = (ROOT / "src" / "realtime.py").read_text(encoding="utf-8")
+
+    assert "self.output_language.currentTextChanged.connect(self._language_selection_changed)" in settings
+    assert "def _save_language_only" in settings
+    assert "config.enrichment.target_language = language" in settings
+    assert "topic.output_language = language" in settings
+    assert "def _translate_language_combos" in settings
+    assert "self.tray_actions" in main_window
+    assert "self.worker.reload_runtime_settings()" in main_window
+    assert "def reload_runtime_settings" in scheduler
+    assert '"output_language": self.status.output_language' in scheduler
+    assert 'payload["output_language"] = config.app.output_language' in realtime
+
+
 def test_settings_page_saves_deepseek_and_x_configuration(tmp_path):
     script = textwrap.dedent(f"""
         import os
@@ -215,6 +250,91 @@ def test_topics_page_exposes_next_version_topic_schema(tmp_path):
         assert topic.social_enabled is True
         assert topic.min_confidence_score == 0.7
         assert topic.report_include_user_action is False
+        """)
+    result = _run_qt_script(script)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_dashboard_and_topic_pages_adapt_to_narrow_windows(tmp_path):
+    script = textwrap.dedent(f"""
+        import os
+        from pathlib import Path
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication
+
+        from src.config import save_config
+        from src.models import AppConfig, TopicConfig
+        from src.ui.dashboard_page import DashboardPage
+        from src.ui.topics_page import TopicsPage
+
+        runtime_dir = Path({str(tmp_path)!r})
+        app = QApplication.instance() or QApplication([])
+        config_path = runtime_dir / "config.yaml"
+        save_config(
+            AppConfig(topics=[TopicConfig(name="Policy", enabled=True, prompt="Track policy.", keywords=["policy"])]),
+            config_path,
+        )
+
+        dashboard = DashboardPage()
+        dashboard.resize(360, 500)
+        dashboard.show()
+        app.processEvents()
+        dashboard._apply_adaptive_layout()
+
+        topics = TopicsPage(config_path)
+        topics.resize(540, 520)
+        topics.show()
+        app.processEvents()
+        topics._apply_adaptive_layout()
+
+        assert app is not None
+        assert dashboard._stat_columns <= 2
+        assert dashboard.body_splitter.orientation() == Qt.Vertical
+        assert topics.splitter.orientation() == Qt.Vertical
+
+        dashboard.resize(980, 640)
+        topics.resize(980, 640)
+        app.processEvents()
+        dashboard._apply_adaptive_layout()
+        topics._apply_adaptive_layout()
+
+        assert dashboard._stat_columns >= 3
+        assert dashboard.body_splitter.orientation() == Qt.Horizontal
+        assert topics.splitter.orientation() == Qt.Horizontal
+        """)
+    result = _run_qt_script(script)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_settings_forms_wrap_long_rows_for_small_windows(tmp_path):
+    script = textwrap.dedent(f"""
+        import os
+        from pathlib import Path
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+        from PySide6.QtWidgets import QApplication, QFormLayout
+
+        from src.config import save_config
+        from src.models import AppConfig
+        from src.ui.settings_page import SettingsPage
+
+        runtime_dir = Path({str(tmp_path)!r})
+        app = QApplication.instance() or QApplication([])
+        config_path = runtime_dir / "config.yaml"
+        save_config(AppConfig(), config_path)
+        (runtime_dir / ".env").write_text("", encoding="utf-8")
+
+        page = SettingsPage(config_path, runtime_dir)
+        forms = page.findChildren(QFormLayout)
+
+        assert app is not None
+        assert forms
+        assert all(form.rowWrapPolicy() == QFormLayout.WrapLongRows for form in forms)
+        assert page.settings_tabs.usesScrollButtons() is True
         """)
     result = _run_qt_script(script)
     assert result.returncode == 0, result.stderr + result.stdout

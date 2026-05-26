@@ -57,6 +57,7 @@
   "all": "全部",
   "open_logs": "打开日志文件夹",
   "enabled": "启用",
+  "auto": "自动",
   "allow_broad_search": "允许无关键词宽泛搜索",
   "default": "默认",
   "none": "无",
