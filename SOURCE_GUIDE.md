@@ -82,7 +82,9 @@ Source cache is local-only. Fresh cache can avoid repeat fetches during short cy
 
 Coverage quality summarizes confidence as `high`, `medium`, `low`, or `critical` using fresh source count, enabled source count, Tier 1/2 availability, category/language coverage, failures, intelligence gaps, and recent article volume.
 
-Multi-source confirmation boosts ranking when several independent sources report the same event. Confirmation is weaker when reports appear to come from the same owner or network. Alerts include the confirmation context when available.
+Multi-source confirmation boosts ranking when several independent sources report the same event. Related articles are now grouped into event clusters before final LLM synthesis when they share important topic terms, entities, source context, and publication-time proximity. Confirmation is weaker when reports appear to come from the same owner or network. Alerts include the relation reason, source list, and confirmation context when available.
+
+Event timelines are generated only from source metadata and provided article text. Exact source-mentioned dates such as `2026-05-25` or `May 25, 2026` can become timeline items; partial dates stay in the description instead of inventing a year. If the app only has article publication time, the timeline item is labeled as publication-time based. If no date exists, the date stays `unknown`; the app should not invent event dates. For topics where timing matters, prefer official/government, company IR, wire, or other primary sources in the enabled source package.
 
 ## Custom Source Rules
 

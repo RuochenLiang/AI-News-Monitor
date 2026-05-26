@@ -60,24 +60,25 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 - Intelligence gaps are visible for source packages, categories, languages, topic-relevant categories, official/government, finance, China/Taiwan, Semiconductor/AI, and Company IR groups.
 - Coverage quality is visible globally and, where available, per topic.
 - Source package warnings are visible when no packages are enabled or enabled package sources are not fresh.
-- Pipeline funnel is visible after each cycle and shows source counts, filters, LLM decisions, threshold rejections, alert count, notification attempts, and top rejection reasons.
+- Pipeline funnel is visible after each cycle and shows source counts, deduplicated articles, candidates, event clusters, clusters sent to LLM, LLM decisions, threshold rejections, event alert count, notification attempts, and top rejection reasons.
+- Event cluster cards are visible in the browser console with event title, grouped article count, latest update, summary, timeline preview, source links, relation reason, and expandable diagnostics.
 - Run Once and E2E Test controls are available in the local browser console; E2E Test is clearly marked as test-only and can verify alert plus mocked/configured notification delivery.
 - Run E2E Test and confirm at least one test alert is saved and at least one notification is attempted when a channel is configured.
 - Run Run Once and confirm the latest Pipeline Funnel is visible.
 - `/health` is documented as liveness only, and `/readiness` or `/api/readiness` summarizes monitor, LLM, notifier, source coverage, critical gaps, last cycle status, and `can_send_alerts`.
 - Paused/running/stopped/error state is prominent, including pause reason and next scheduled cycle when available.
 - Last-known-good cached fallback is clearly marked as cached/degraded and cached alerting is disabled by default.
-- Multi-source confirmation context appears in alert text when multiple independent sources report the same event.
+- Multi-source event synthesis appears in alert text when multiple independent sources report the same event, including relation reason, timeline, source links, uncertainty, and suggested follow-up.
 - Desktop app can run Test LLM, source tests, and per-channel notification tests without real bundled credentials.
 - Browser console remains read-only for configuration, shows concise operator summaries first, keeps raw diagnostics behind details, and wraps long URLs/errors without layout overflow.
 - SSE/browser console failures are visible and the local server remains bound to localhost unless LAN access is explicitly enabled.
 
 ## User Guidance
 
-- `README.md` and `README.zh-CN.md` explain local run steps, Run Once, E2E Test Mode, diagnostics, pipeline funnel, 0-alert interpretation, readiness vs health, LLM setup, Gmail app passwords, sender vs receiver fields, source testing, and notification testing.
-- `NOTIFICATION_GUIDE.md` explains Gmail app password setup, SMTP categories, webhook categories, fallback routing, From Address readiness, and pipeline notification failure reasons.
+- `README.md` and `README.zh-CN.md` explain local run steps, Run Once, E2E Test Mode, diagnostics, event clustering, event timelines, pipeline funnel, 0-alert interpretation, readiness vs health, LLM setup, Gmail app passwords, sender vs receiver fields, source testing, and notification testing.
+- `NOTIFICATION_GUIDE.md` explains event alert rendering, timelines, source links, Gmail app password setup, SMTP categories, webhook categories, fallback routing, From Address readiness, and pipeline notification failure reasons.
 - `SOURCE_GUIDE.md` explains public-source policy, source testing, bulk source diagnostics, GDELT/Yahoo common failures, source package warnings, and website-only candidates.
-- `SOURCE_GUIDE.md` explains source tiers, roles, state-affiliation/propaganda-risk context, freshness states, intelligence gaps, source cache, smart polling/backoff, source presets, coverage quality, and multi-source confirmation.
+- `SOURCE_GUIDE.md` explains source tiers, roles, state-affiliation/propaganda-risk context, freshness states, intelligence gaps, source cache, smart polling/backoff, source presets, coverage quality, event clustering, timeline date safety, and multi-source confirmation.
 - `config.example.yaml` and `.env.example` contain placeholders only.
 
 ## Packaging
@@ -96,9 +97,10 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 - Confirm long error text wraps without breaking the layout.
 - Confirm the browser console primary cards do not show raw JSON, raw stack traces, or full long URLs by default; verify details/copy diagnostics still expose technical data.
 - Confirm Run Once produces a visible pipeline funnel and E2E Test produces a visible `[E2E TEST]` alert path with mock or configured notification delivery.
+- Confirm E2E Test produces one event-level alert with a timeline/source section and event-cluster diagnostics.
 - Confirm no raw JSON, full encoded GDELT queries, long URLs, or stack traces appear in primary browser cards by default.
 - Confirm `LICENSE` exists and project metadata says `GPL-3.0-only`.
 - Confirm GitHub Actions pass after upload.
 - Confirm the Windows build artifact is produced before publishing a Windows release.
 - Confirm no test requires real API keys, Gmail credentials, webhook tokens, or runtime data.
-- Confirm source freshness panel, intelligence gaps panel, source package presets, source backoff, cached/last-known-good behavior, coverage quality score, and multi-source confirmation explanation are visible in the desktop dashboard or local browser console.
+- Confirm source freshness panel, intelligence gaps panel, source package presets, source backoff, cached/last-known-good behavior, coverage quality score, event clusters, timeline preview, source links, and multi-source confirmation explanation are visible in the desktop dashboard or local browser console.

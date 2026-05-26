@@ -15,7 +15,7 @@ from src.diagnostics import (
     missing_required_result,
 )
 from src.models import Alert, GenericWebhookSettings, NotificationResult
-from src.notifiers.base import Notifier, format_test_alert_text
+from src.notifiers.base import Notifier, format_alert_text, format_test_alert_text
 from src.secrets import get_env_secret, sanitize_for_log
 from src.utils.http_utils import request_with_retries
 
@@ -46,8 +46,19 @@ class GenericWebhookNotifier(Notifier):
             "title": alert.title,
             "topic": alert.topic_name,
             "relevance_score": alert.analysis.relevance_score,
-            "summary": alert.analysis.summary,
+            "summary": alert.analysis.event_summary or alert.analysis.summary,
+            "text": format_alert_text(alert, alert.output_language, alert.mode),
             "links": alert.links,
+            "event": {
+                "title": alert.analysis.event_title or alert.title,
+                "current_status": alert.analysis.current_status,
+                "grouped_article_count": alert.analysis.grouped_article_count,
+                "timeline": [item.to_dict() for item in alert.analysis.timeline],
+                "sources": [item.to_dict() for item in alert.analysis.source_links],
+                "relation_reason": alert.analysis.relation_reason,
+                "uncertainties": alert.analysis.uncertainties,
+                "suggested_actions": alert.analysis.suggested_actions,
+            },
         }
 
     def send(self, alert: Alert) -> NotificationResult:

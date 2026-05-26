@@ -13,6 +13,8 @@ from src.bias import annotate_bias_context, cluster_articles
 from src.config import load_config
 from src.dedupe import dedupe_articles
 from src.diagnostics import classify_feed_http_error
+from src.event_clustering import cluster_event_articles
+from src.event_synthesis import cluster_status_payload, source_links_from_articles
 from src.language import detect_supported_language, normalize_language
 from src.llm_client import LLMClient
 from src.logging_setup import alert_logger, cleanup_old_logs
@@ -20,6 +22,7 @@ from src.models import (
     Alert,
     AppConfig,
     Article,
+    EventCluster,
     LLMAnalysis,
     MarketWatchSuggestion,
     NotificationResult,
@@ -165,6 +168,7 @@ class NewsMonitor:
         self.status.source_states = self.store.load_all_source_states()
         self._refresh_reliability_status(config)
         self.status.recent_matches = []
+        self.status.recent_event_clusters = []
         self.status.alerts_sent_today = self.store.alerts_sent_today()
         self.status.last_fetch_time = utc_now()
         self._emit_status()
@@ -190,6 +194,7 @@ class NewsMonitor:
             increment(funnel, "articles_rejected_as_duplicates", duplicate_count)
             reject(funnel, "duplicate", duplicate_count)
             increment(funnel, "articles_after_deduplication", len(unique_articles))
+            increment(funnel, "articles_after_dedupe", len(unique_articles))
             candidates = self._candidate_articles(unique_articles, topic, config, funnel, skip_seen_dedupe=test_mode)
             cluster_articles(candidates, config.bias.min_cluster_size)
             candidates = rank_articles(candidates, topic, config.quality, preferred_language=config.app.output_language)
@@ -221,7 +226,19 @@ class NewsMonitor:
                         "source": article.source,
                     }
                 )
-            self._analyze_candidates(candidates[:candidate_limit], topic, config, llm_client, notifiers, funnel)
+            limited_candidates = candidates[:candidate_limit]
+            event_clusters = cluster_event_articles(limited_candidates, topic)
+            increment(funnel, "event_clusters_produced", len(event_clusters))
+            increment(funnel, "event_clusters", len(event_clusters))
+            self.status.recent_event_clusters = [
+                cluster_status_payload(cluster) for cluster in event_clusters
+            ] + self.status.recent_event_clusters
+            self.status.recent_event_clusters = self.status.recent_event_clusters[:25]
+            self.status.queue_length = len(event_clusters)
+            self._log(
+                f"Topic '{topic.name}' produced {len(event_clusters)} event cluster(s) from {len(limited_candidates)} candidate(s)."
+            )
+            self._analyze_event_clusters(event_clusters, topic, config, llm_client, notifiers, funnel)
 
         self.status.alerts_sent_today = self.store.alerts_sent_today()
         self.status.queue_length = 0
@@ -483,47 +500,61 @@ class NewsMonitor:
         self.status.intelligence_gaps = compute_intelligence_gaps(config, self.status.source_states)
         self.status.coverage_quality = compute_coverage_quality(config, self.status.source_states)
 
-    def _analyze_candidates(
+    def _analyze_event_clusters(
         self,
-        candidates: list[Article],
+        event_clusters: list[EventCluster],
         topic: TopicConfig,
         config: AppConfig,
         llm_client: object,
         notifiers: list[Notifier],
         funnel: dict | None = None,
     ) -> None:
+        candidates = [article for cluster in event_clusters for article in cluster.articles]
         annotate_bias_context(candidates, config.bias.enabled, config.bias.mode, config.bias.min_cluster_size)
-        for article in candidates:
+        for cluster in event_clusters:
+            article = cluster.primary_article
             self.status.queue_length = max(0, self.status.queue_length - 1)
-            self.store.upsert_article(article, topic.name)
-            enrich_article_language(
-                article,
-                target_language=config.enrichment.target_language or topic.output_language,
-                translation_enabled=config.enrichment.translation_enabled,
-                summary_enabled=config.enrichment.summary_enabled,
-                llm_client=llm_client,
-            )
+            for cluster_article in cluster.articles:
+                self.store.upsert_article(cluster_article, topic.name)
+                enrich_article_language(
+                    cluster_article,
+                    target_language=config.enrichment.target_language or topic.output_language,
+                    translation_enabled=config.enrichment.translation_enabled,
+                    summary_enabled=config.enrichment.summary_enabled,
+                    llm_client=llm_client,
+                )
             try:
-                logger.info("LLM analysis started: topic=%s title=%s", topic.name, article.title)
+                logger.info("LLM event analysis started: topic=%s cluster=%s", topic.name, cluster.cluster_id)
                 increment(funnel, "candidates_sent_to_llm")
-                analysis = llm_client.analyze_article(topic, article)
+                increment(funnel, "event_clusters_sent_to_llm")
+                increment(funnel, "clusters_sent_to_llm")
+                if hasattr(llm_client, "analyze_event_cluster"):
+                    analysis = llm_client.analyze_event_cluster(topic, cluster)
+                else:
+                    analysis = llm_client.analyze_article(topic, article)
+                    analysis.grouped_article_count = cluster.article_count
+                    analysis.relation_reason = analysis.relation_reason or cluster.relation_reason
                 self.status.last_llm_analysis_time = utc_now()
-                logger.info("LLM analysis completed: score=%s topic=%s", analysis.relevance_score, topic.name)
+                logger.info("LLM event analysis completed: score=%s topic=%s", analysis.relevance_score, topic.name)
             except Exception as exc:  # noqa: BLE001 - bad LLM output should not crash monitor
                 increment(funnel, "llm_rejected")
+                increment(funnel, "event_clusters_rejected_by_llm")
                 reject(funnel, "llm_relevance_low")
-                logger.exception("LLM analysis failed for article: %s", article.title)
-                self._log(f"LLM analysis failed for '{article.title}': {exc}")
-                self.store.mark_processed(article, topic.name)
-                self.status.total_articles_processed += 1
+                logger.exception("LLM event analysis failed for cluster: %s", cluster.cluster_id)
+                self._log(f"LLM event analysis failed for '{cluster.title}': {exc}")
+                for cluster_article in cluster.articles:
+                    self.store.mark_processed(cluster_article, topic.name)
+                    self.status.total_articles_processed += 1
                 self._emit_status()
                 continue
 
-            self.store.mark_processed(article, topic.name)
-            self.status.total_articles_processed += 1
+            for cluster_article in cluster.articles:
+                self.store.mark_processed(cluster_article, topic.name)
+                self.status.total_articles_processed += 1
             threshold = topic_threshold(topic, config.monitor.min_relevance_score)
             if not analysis.is_actionable_alert:
                 increment(funnel, "llm_rejected")
+                increment(funnel, "event_clusters_rejected_by_llm")
                 reject(funnel, "llm_relevance_low")
                 continue
             if analysis.relevance_score < threshold:
@@ -554,9 +585,11 @@ class NewsMonitor:
                 sent_at=utc_now(),
                 mode=config.alerts.default_mode,
                 output_language=config.app.output_language,
+                event_cluster=cluster,
             )
             alert.id = self.store.save_alert(alert)
             increment(funnel, "alerts_saved")
+            increment(funnel, "event_alerts_generated")
             self.status.last_alert_sent_time = alert.sent_at
             self.status.recent_alerts.insert(0, alert)
             self.status.recent_alerts = self.status.recent_alerts[:10]
@@ -570,6 +603,8 @@ class NewsMonitor:
                     "topic": topic.name,
                     "title": alert.title,
                     "url": alert.article.url,
+                    "source_count": cluster.article_count,
+                    "event_cluster_id": cluster.cluster_id,
                     "relevance_score": analysis.relevance_score,
                 }
             )
@@ -744,9 +779,9 @@ def build_sources(config: AppConfig) -> list[NewsSource]:
         sources.append(GoogleNewsRssSource(timeout))
     if config.sources.yahoo_finance_rss.enabled:
         sources.append(YahooFinanceRssSource(timeout))
-    if config.sources.public_rss.enabled:
+    if config.sources.public_rss.enabled and config.sources.public_rss.urls:
         sources.append(PublicRssSource(config.sources.public_rss.urls, timeout))
-    if config.sources.official_rss.enabled:
+    if config.sources.official_rss.enabled and config.sources.official_rss.urls:
         sources.append(OfficialRssSource(config.sources.official_rss.urls, timeout))
     for library_source in enabled_library_sources(config.sources):
         sources.append(CustomRssSource(library_source, timeout))
@@ -900,7 +935,23 @@ class E2ETestLlmClient:
             source_reliability="low",
             recommended_user_action="watch_only",
             notification_title="[E2E TEST] AI News Monitor pipeline verified",
+            event_title="[E2E TEST] AI News Monitor pipeline verified",
+            event_summary="Controlled E2E event synthesis. This is not real news.",
+            current_status="Pipeline test completed.",
+            key_facts=["A controlled article passed fetch, candidate, LLM, alert, and notification stages."],
+            affected_entities=["AI News Monitor"],
+            relation_reason="Single source event cluster; no related articles were available in this test cycle.",
+            uncertainties=["This is a deterministic local fixture, not a live source report."],
+            suggested_actions=["Use this only to verify local delivery plumbing."],
         )
+
+    def analyze_event_cluster(self, topic: TopicConfig, cluster: EventCluster) -> LLMAnalysis:
+        analysis = self.analyze_article(topic, cluster.primary_article)
+        analysis.timeline = cluster.timeline
+        analysis.source_links = source_links_from_articles(cluster.articles)
+        analysis.grouped_article_count = cluster.article_count
+        analysis.relation_reason = cluster.relation_reason
+        return analysis
 
 
 def _source_error_summary(source_name: str, category: str, exc: Exception) -> str:

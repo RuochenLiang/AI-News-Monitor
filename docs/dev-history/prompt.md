@@ -15,6 +15,9 @@ This file consolidates the historical development prompts in their original sequ
 9. [09-prove-e2e-alert-delivery-and-clean-browser-console.md](prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md)
 10. [10-clean-root-for-final-github-upload.md](prompts/10-clean-root-for-final-github-upload.md)
 11. [11-verify-next-phase-features-and-runtime-stability.md](prompts/11-verify-next-phase-features-and-runtime-stability.md)
+12. [12-structured-outputs-upgrade.md](prompts/12-structured-outputs-upgrade.md)
+13. [13-runtime-web-ui-stabilization.md](prompts/13-runtime-web-ui-stabilization.md)
+14. [14-event-synthesis-timeline.md](prompts/14-event-synthesis-timeline.md)
 
 ---
 
@@ -7369,3 +7372,27 @@ Verify that the AI News Monitor application has implemented all mandatory featur
 ## Completion
 
 When all checks are complete, output your findings in a structured report using the above “Summary” format.  Mark the task done once you have verified the phase completion.
+
+---
+
+## 12. Structured Outputs upgrade prompt
+
+Archive file: [`prompts/12-structured-outputs-upgrade.md`](prompts/12-structured-outputs-upgrade.md)
+
+This prompt requested the LLM client upgrade from loose JSON object mode to OpenAI-compatible Structured Outputs with strict JSON Schema, while keeping local validation and provider fallback behavior.
+
+---
+
+## 13. Runtime and Web UI stabilization prompt
+
+Archive file: [`prompts/13-runtime-web-ui-stabilization.md`](prompts/13-runtime-web-ui-stabilization.md)
+
+This prompt requested runtime stability, source-package coverage, GDELT query hardening, API-pressure reduction, web console overflow fixes, localization cleanup, and release-readiness verification.
+
+---
+
+## 14. Event synthesis and timeline prompt
+
+Archive file: [`prompts/14-event-synthesis-timeline.md`](prompts/14-event-synthesis-timeline.md)
+
+This prompt requested deterministic event clustering before LLM synthesis, event-level structured output, timeline extraction, grouped notification rendering, browser event cards, event pipeline diagnostics, documentation updates, and verification.

@@ -51,6 +51,93 @@ class Article:
 
 
 @dataclass
+class TimelineItem:
+    date: str
+    time: str | None
+    label: str
+    description: str
+    source_title: str
+    source_url: str
+    confidence: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "date": self.date,
+            "time": self.time,
+            "label": self.label,
+            "description": self.description,
+            "source_title": self.source_title,
+            "source_url": self.source_url,
+            "confidence": self.confidence,
+        }
+
+
+@dataclass
+class SourceLink:
+    title: str
+    url: str
+    publisher: str
+    published_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "url": self.url,
+            "publisher": self.publisher,
+            "published_at": self.published_at,
+        }
+
+
+@dataclass
+class EventCluster:
+    cluster_id: str
+    title: str
+    articles: list[Article]
+    topics: list[str] = field(default_factory=list)
+    entities: list[str] = field(default_factory=list)
+    earliest_published_at: datetime | None = None
+    latest_published_at: datetime | None = None
+    confidence: float = 0.0
+    relation_reason: str = ""
+    timeline: list[TimelineItem] = field(default_factory=list)
+
+    @property
+    def article_count(self) -> int:
+        return len(self.articles)
+
+    @property
+    def primary_article(self) -> Article:
+        return self.articles[0]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cluster_id": self.cluster_id,
+            "title": self.title,
+            "article_count": self.article_count,
+            "topics": self.topics,
+            "entities": self.entities,
+            "earliest_published_at": self.earliest_published_at.isoformat() if self.earliest_published_at else None,
+            "latest_published_at": self.latest_published_at.isoformat() if self.latest_published_at else None,
+            "confidence": self.confidence,
+            "relation_reason": self.relation_reason,
+            "timeline": [item.to_dict() for item in self.timeline],
+            "articles": [
+                {
+                    "title": article.title,
+                    "url": article.url,
+                    "source": article.source,
+                    "published_at": article.published_at.isoformat() if article.published_at else None,
+                    "snippet": article.snippet,
+                    "language": article.language,
+                    "reliability_score": article.reliability_score,
+                    "source_role": article.source_role,
+                }
+                for article in self.articles
+            ],
+        }
+
+
+@dataclass
 class MarketWatchSuggestion:
     ticker: str
     name_or_theme: str
@@ -74,6 +161,17 @@ class LLMAnalysis:
     source_reliability: Reliability
     recommended_user_action: UserAction
     notification_title: str
+    event_title: str = ""
+    event_summary: str = ""
+    current_status: str = ""
+    timeline: list[TimelineItem] = field(default_factory=list)
+    key_facts: list[str] = field(default_factory=list)
+    affected_entities: list[str] = field(default_factory=list)
+    source_links: list[SourceLink] = field(default_factory=list)
+    relation_reason: str = ""
+    uncertainties: list[str] = field(default_factory=list)
+    suggested_actions: list[str] = field(default_factory=list)
+    grouped_article_count: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -99,6 +197,18 @@ class LLMAnalysis:
             "source_reliability": self.source_reliability,
             "recommended_user_action": self.recommended_user_action,
             "notification_title": self.notification_title,
+            "event_title": self.event_title,
+            "event_summary": self.event_summary,
+            "current_status": self.current_status,
+            "timeline": [item.to_dict() for item in self.timeline],
+            "key_facts": self.key_facts,
+            "affected_entities": self.affected_entities,
+            "source_links": [item.to_dict() for item in self.source_links],
+            "relation_reason": self.relation_reason,
+            "uncertainties": self.uncertainties,
+            "suggested_actions": self.suggested_actions,
+            "grouped_article_count": self.grouped_article_count,
+            "should_notify": self.is_actionable_alert,
         }
 
 
@@ -111,14 +221,19 @@ class Alert:
     id: int | None = None
     mode: AlertMode = "fast"
     output_language: str = "zh-CN"
+    event_cluster: EventCluster | None = None
 
     @property
     def title(self) -> str:
-        return self.analysis.notification_title or self.article.title
+        return self.analysis.event_title or self.analysis.notification_title or self.article.title
 
     @property
     def links(self) -> list[str]:
-        return [self.article.url]
+        links = [item.url for item in self.analysis.source_links if item.url]
+        if self.event_cluster:
+            links.extend(article.url for article in self.event_cluster.articles if article.url)
+        links.append(self.article.url)
+        return list(dict.fromkeys(link for link in links if link))
 
 
 @dataclass
@@ -155,7 +270,7 @@ class AppSettings:
 
 @dataclass
 class MonitorSettings:
-    default_interval_seconds: int = 120
+    default_interval_seconds: int = 600
     min_relevance_score: int = 80
     max_alerts_per_hour: int = 5
     deduplicate_hours: int = 72
@@ -478,6 +593,7 @@ class RuntimeStatus:
     live_event_count: int = 0
     alerts_sent_today: int = 0
     recent_matches: list[dict[str, Any]] = field(default_factory=list)
+    recent_event_clusters: list[dict[str, Any]] = field(default_factory=list)
     recent_alerts: list[Alert] = field(default_factory=list)
     recent_logs: list[str] = field(default_factory=list)
     error_message: str | None = None

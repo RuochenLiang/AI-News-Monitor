@@ -29,6 +29,9 @@ Ordered prompt archive:
 9. [09-prove-e2e-alert-delivery-and-clean-browser-console.md](docs/dev-history/prompts/09-prove-e2e-alert-delivery-and-clean-browser-console.md)
 10. [10-clean-root-for-final-github-upload.md](docs/dev-history/prompts/10-clean-root-for-final-github-upload.md)
 11. [11-verify-next-phase-features-and-runtime-stability.md](docs/dev-history/prompts/11-verify-next-phase-features-and-runtime-stability.md)
+12. [12-structured-outputs-upgrade.md](docs/dev-history/prompts/12-structured-outputs-upgrade.md)
+13. [13-runtime-web-ui-stabilization.md](docs/dev-history/prompts/13-runtime-web-ui-stabilization.md)
+14. [14-event-synthesis-timeline.md](docs/dev-history/prompts/14-event-synthesis-timeline.md)
 
 ## Quick Start on macOS
 
@@ -82,7 +85,7 @@ Use the desktop app Settings, Sources, Topics, and Notifications pages to config
 - At least 1 notification channel
 - Fast Alert or Full Analysis mode
 
-The browser console at `http://127.0.0.1:8765` is read-only and is intended for live monitoring status, readiness, pipeline funnel, source health, notification state, concise events, logs, and recent alerts. It has Run Once and E2E Test controls, but configuration and credential entry stay in the desktop app. Advanced users can still edit `config.yaml` and `.env` directly in the local runtime directory.
+The browser console at `http://127.0.0.1:8765` is read-only and is intended for live monitoring status, readiness, pipeline funnel, event clusters, source health, notification state, concise events, logs, and recent alerts. It has Run Once and E2E Test controls, but configuration and credential entry stay in the desktop app. Advanced users can still edit `config.yaml` and `.env` directly in the local runtime directory.
 
 ## Diagnostics and Test Buttons
 
@@ -101,10 +104,10 @@ Standard failure categories include `missing_required_field`, `invalid_url`, `in
 Every cycle records a concise funnel, for example:
 
 ```text
-Fetched 441 -> Language 390 -> Keyword 12 -> New 3 -> LLM 2 -> Alerts 0
+Fetched 441 -> Dedupe 390 -> Candidates 12 -> Events 3 -> LLM 2 -> Alerts 0
 ```
 
-If there are 0 alerts, the dashboard explains the first major blocker: no keyword match, duplicate, unsupported language, LLM rejected, below threshold, cooldown, rate limit, missing notifier, or notification failure. Below-threshold cycles show the top rejected candidate score and the topic threshold. For E2E checks, use E2E Test or temporarily lower only the test threshold to around 50-60; keep production thresholds high enough to reduce noise.
+If there are 0 alerts, the dashboard explains the first major blocker: no keyword match, duplicate, unsupported language, LLM rejected, below threshold, cooldown, rate limit, missing notifier, or notification failure. Below-threshold cycles show the top rejected candidate score and the topic threshold. Event diagnostics distinguish fetched articles, deduplicated articles, ranked candidates, event clusters, clusters sent to the LLM, event alerts, and notifications. For E2E checks, use E2E Test or temporarily lower only the test threshold to around 50-60; keep production thresholds high enough to reduce noise.
 
 ## LLM Settings
 
@@ -124,7 +127,7 @@ Regular users usually need only:
 
 The API key is stored locally in `.env` as `LLM_API_KEY`, not in source code.
 
-The app prefers API-enforced JSON Schema Structured Outputs for article analysis and translation when the configured OpenAI-compatible provider supports it. Providers that only support `response_format: {"type": "json_object"}` automatically fall back to JSON mode, and the app still performs local parsing and validation either way.
+The app prefers API-enforced JSON Schema Structured Outputs for event synthesis and translation when the configured OpenAI-compatible provider supports it. Providers that only support `response_format: {"type": "json_object"}` automatically fall back to JSON mode, and the app still performs local parsing and validation either way.
 
 If the LLM test fails:
 
@@ -137,10 +140,13 @@ If the LLM test fails:
 
 Fast Alert is the default. It includes:
 
-- Original title and link
+- Event title and current status
+- One or more original source links
 - Translated title when needed
 - Source and published time
-- Short summary
+- Event-level summary
+- Timeline built only from source metadata and article text
+- Key facts from related articles
 - Market-watch suggestions from the LLM response
 - Recommended user action such as watch only, research further, or urgent review
 - Match reason and keywords/entities
@@ -148,7 +154,7 @@ Fast Alert is the default. It includes:
 - Multi-source event cluster context
 - Quality and relevance explanation
 
-Full Analysis is optional and adds deeper LLM fields such as why-it-matters, scenarios, risk notes, and uncertainty.
+When multiple related articles describe the same underlying event, the monitor groups them into one event cluster and sends one synthesized alert with a relation reason, source list, timeline, uncertainty notes, and suggested follow-up. A single-source event still produces a normal single-article alert when no related source is available. Full Analysis is optional and adds deeper LLM fields such as why-it-matters, scenarios, risk notes, and uncertainty.
 
 ## Source Library
 
@@ -184,7 +190,8 @@ The dashboard and read-only browser console surface:
 - Coverage quality: `high`, `medium`, `low`, or `critical` confidence for current monitoring coverage.
 - Source package state: enabled packages, effective source counts, fresh source counts, and warnings when no package is enabled or enabled package sources are not fresh.
 - Last-known-good fallback: stale cached data can keep diagnostics useful when a source fails, but cached articles do not generate new alerts by default.
-- Multi-source confirmation: alerts explain when an event is confirmed by multiple independent sources and penalize same-owner confirmation.
+- Event clustering and multi-source confirmation: related articles are grouped into one event-level alert when they share topic terms, important entities, source context, and publication-time proximity. Alerts explain why sources are related, include links, and penalize same-owner confirmation.
+- Timeline safety: event timelines are generated only from source metadata and provided article text. Exact source-mentioned dates such as `2026-05-25` or `May 25, 2026` can become timeline items; partial dates stay in the description instead of inventing a year. Unknown dates stay unknown, and publication-time-derived timeline entries are labeled as such. Prefer official or primary sources when reliable timelines matter.
 
 GDELT diagnostics now test both a production-shaped topic query and a simple smoke query. Non-JSON responses, long queries, malformed query shapes, 429 rate limits, and timeouts are classified with suggested fixes. Yahoo Finance 429 responses are treated as `api_rate_limited`, trigger source backoff, and should be offset with other public finance sources from Finance Starter.
 

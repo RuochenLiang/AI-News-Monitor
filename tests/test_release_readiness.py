@@ -45,6 +45,9 @@ PROMPT_ARCHIVE_ORDER = (
     "09-prove-e2e-alert-delivery-and-clean-browser-console.md",
     "10-clean-root-for-final-github-upload.md",
     "11-verify-next-phase-features-and-runtime-stability.md",
+    "12-structured-outputs-upgrade.md",
+    "13-runtime-web-ui-stabilization.md",
+    "14-event-synthesis-timeline.md",
 )
 
 
@@ -275,7 +278,7 @@ def test_local_console_contains_required_sections():
     assert "First-run Setup" in html
     assert "monitoring_console_readonly" in html
     assert "Recent Matches" in html
-    assert "llmHealth" in html
+    assert "llm_health" in html
     assert "Pipeline Funnel" in html
     assert "E2E Test" in html
     assert "Run Once" in html
@@ -311,6 +314,11 @@ def test_locale_resources_have_matching_keys():
         "source_freshness_summary",
         "coverage_quality",
         "intelligence_gaps",
+        "pipeline_funnel",
+        "notification_health",
+        "show_details",
+        "copy_diagnostics",
+        "monitoring_paused_warning",
         "alert.confirmation",
         "fresh",
         "stale",
@@ -408,7 +416,13 @@ def _release_candidate_paths() -> list[Path]:
 @lru_cache(maxsize=1)
 def _tracked_files() -> tuple[Path, ...] | None:
     try:
-        result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, text=True, capture_output=True, check=False)
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
     except OSError:
         return None
     if result.returncode != 0:

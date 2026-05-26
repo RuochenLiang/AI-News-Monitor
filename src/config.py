@@ -416,7 +416,7 @@ def _parse_app(data: dict[str, Any]) -> AppSettings:
 
 def _parse_monitor(data: dict[str, Any]) -> MonitorSettings:
     return MonitorSettings(
-        default_interval_seconds=int(data.get("default_interval_seconds", 120)),
+        default_interval_seconds=int(data.get("default_interval_seconds", 600)),
         min_relevance_score=int(data.get("min_relevance_score", 80)),
         max_alerts_per_hour=int(data.get("max_alerts_per_hour", 5)),
         deduplicate_hours=int(data.get("deduplicate_hours", 72)),
@@ -488,7 +488,7 @@ def _parse_sources(data: dict[str, Any]) -> SourceSettings:
     return SourceSettings(
         gdelt=SourceToggle(bool((data.get("gdelt", {}) or {}).get("enabled", True))),
         google_news_rss=SourceToggle(bool((data.get("google_news_rss", {}) or {}).get("enabled", True))),
-        yahoo_finance_rss=SourceToggle(bool((data.get("yahoo_finance_rss", {}) or {}).get("enabled", True))),
+        yahoo_finance_rss=SourceToggle(bool((data.get("yahoo_finance_rss", {}) or {}).get("enabled", False))),
         public_rss=OfficialRssSettings(
             bool(public.get("enabled", False)),
             [str(url) for url in public.get("urls", PUBLIC_RSS_DEFAULTS) or []],

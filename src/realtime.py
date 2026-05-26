@@ -377,6 +377,7 @@ def status_to_dict(status: RuntimeStatus) -> dict[str, Any]:
         "queue_length": status.queue_length,
         "alerts_sent_today": status.alerts_sent_today,
         "recent_matches": status.recent_matches[:25],
+        "recent_event_clusters": status.recent_event_clusters[:25],
         "notifier_health": status.notifier_health,
         "notifier_states": status.notifier_states,
         "source_health": status.source_health,
@@ -406,6 +407,15 @@ def status_to_dict(status: RuntimeStatus) -> dict[str, Any]:
                 "url": alert.article.url,
                 "score": alert.analysis.relevance_score,
                 "sent_at": alert.sent_at,
+                "event_title": alert.analysis.event_title or alert.title,
+                "current_status": alert.analysis.current_status,
+                "summary": alert.analysis.event_summary or alert.analysis.summary,
+                "grouped_article_count": alert.analysis.grouped_article_count,
+                "relation_reason": alert.analysis.relation_reason,
+                "timeline": [item.to_dict() for item in alert.analysis.timeline[:6]],
+                "source_links": [item.to_dict() for item in alert.analysis.source_links],
+                "uncertainties": alert.analysis.uncertainties,
+                "suggested_actions": alert.analysis.suggested_actions,
             }
             for alert in status.recent_alerts[:10]
         ],
@@ -911,13 +921,16 @@ def _enabled_source_targets(config) -> list[dict[str, Any]]:
         first_topic = next((topic for topic in config.topics if topic.enabled), None)
         try:
             params = gdelt_params_for_topic(
-                first_topic or TopicConfig(name="GDELT Smoke", enabled=True, prompt="", keywords=["AI"]),
+                first_topic
+                or TopicConfig(name="GDELT Smoke", enabled=True, prompt="", keywords=["artificial intelligence"]),
                 max_records=1,
             )
             query_error = None
         except ValueError as exc:
             params = {
-                "query": build_gdelt_query(TopicConfig(name="GDELT Smoke", enabled=True, prompt="", keywords=["AI"])),
+                "query": build_gdelt_query(
+                    TopicConfig(name="GDELT Smoke", enabled=True, prompt="", keywords=["artificial intelligence"])
+                ),
                 "mode": "ArtList",
                 "format": "json",
                 "maxrecords": "1",
@@ -940,7 +953,7 @@ def _enabled_source_targets(config) -> list[dict[str, Any]]:
                 "kind": "json_api",
                 "url": "https://api.gdeltproject.org/api/v2/doc/doc",
                 "params": {
-                    "query": "AI",
+                    "query": "artificial intelligence",
                     "mode": "ArtList",
                     "format": "json",
                     "maxrecords": "1",
@@ -967,9 +980,9 @@ def _enabled_source_targets(config) -> list[dict[str, Any]]:
                 {"name": "Yahoo Finance Top Stories", "kind": "rss", "url": "https://finance.yahoo.com/rss/topstories"},
             ]
         )
-    if config.sources.public_rss.enabled:
+    if config.sources.public_rss.enabled and config.sources.public_rss.urls:
         targets.extend({"name": "Public RSS", "kind": "rss", "url": url} for url in config.sources.public_rss.urls)
-    if config.sources.official_rss.enabled:
+    if config.sources.official_rss.enabled and config.sources.official_rss.urls:
         targets.extend({"name": "Official RSS", "kind": "rss", "url": url} for url in config.sources.official_rss.urls)
     targets.extend(
         {"name": source.name, "kind": "rss", "url": source.url} for source in enabled_library_sources(config.sources)
@@ -986,7 +999,7 @@ def _sample_query(config) -> str:
     for topic in config.topics:
         if topic.enabled:
             return topic.keywords[0] if topic.keywords else topic.name
-    return "AI"
+    return "artificial intelligence"
 
 
 def _diagnose_json_source(target: dict[str, Any], timeout_seconds: int) -> DiagnosticResult:
@@ -1002,7 +1015,7 @@ def _diagnose_json_source(target: dict[str, Any], timeout_seconds: int) -> Diagn
             details={"diagnostic_shape": target.get("diagnostic_shape")},
         )
     params = target.get("params") or {
-        "query": target.get("query") or "AI",
+        "query": target.get("query") or "artificial intelligence",
         "mode": "ArtList",
         "format": "json",
         "maxrecords": "1",
@@ -1315,7 +1328,7 @@ def _index_html() -> str:
     :root{color-scheme:light;--bg:#f5f7fa;--panel:#fff;--text:#172033;--muted:#5d697d;--line:#d8e0ea;--blue:#075fb8;--green:#067647;--red:#b42318;--amber:#a15c07}
     *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;font:14px -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-tap-highlight-color:rgba(7,95,184,.12)}
     a{color:var(--blue)}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(7,95,184,.35);outline-offset:2px}
-    body,.card,.list,.row,.hint,.value,.badge,pre,code,a,button,details{overflow-wrap: anywhere;word-break: break-word;max-width: 100%}
+    body,.card,.list,.row,.hint,.value,.badge,pre,code,a,button,details,.safe-long-text,.safe-code-block,.safe-log-block,.diagnostic-row{overflow-wrap: anywhere;word-break: break-word;max-width: 100%}
     .skip-link{position:absolute;left:12px;top:12px;transform:translateY(-140%);background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:20}.skip-link:focus-visible{transform:none}
     .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
     aside{border-right:1px solid var(--line);background:rgba(255,255,255,.86);backdrop-filter:saturate(180%) blur(18px);padding:20px;position:sticky;top:0;height:100vh}
@@ -1326,18 +1339,18 @@ def _index_html() -> str:
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}.label{color:var(--muted);font-size:12px}.value{font-size:18px;font-weight:650;margin-top:6px;word-break:break-word;font-variant-numeric:tabular-nums}
     .section{display:none}.section.active{display:block}.panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:12px}.list{white-space:pre-wrap;max-height:360px;overflow:auto;word-break:break-word}.table{display:grid;gap:8px}.row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.8fr) minmax(0,2fr);gap:10px;border-bottom:1px solid var(--line);padding:8px 0;align-items:start}.row:last-child{border-bottom:0}.ok{color:var(--green)}.bad{color:var(--red)}.empty{color:var(--muted)}
     .wizard{border:1px solid #c7d7fe;background:#eef4ff}.steps{margin:0;padding-left:18px}.steps li{margin:6px 0}
-    form{display:grid;gap:14px}.field{display:grid;gap:6px}.field label{font-weight:600}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;color:var(--text);font:inherit}.field textarea{min-height:82px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card-head{display:flex;gap:10px;justify-content:space-between;align-items:start;margin-bottom:10px}.channel-card{display:grid;gap:10px}.channel-meta{display:flex;flex-wrap:wrap;gap:6px}.badge{border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted);background:#fff}.badge.bad{border-color:#f4b7ae;color:var(--red);background:#fff6f4}.badge.ok{border-color:#a9e7ca;color:var(--green);background:#f3fcf7}.diagnostic-box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;background:#fff;padding:10px;white-space:pre-wrap;word-break:break-word}.diagnostic-box.bad{border-left-color:var(--red)}.diagnostic-box.ok{border-left-color:var(--green)}.toast{position:fixed;right:18px;bottom:18px;max-width:min(420px,calc(100vw - 36px));border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px 14px;box-shadow:0 14px 34px rgba(16,24,40,.13);z-index:10}.toast[hidden]{display:none}.small-button{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;cursor:pointer;touch-action:manipulation}details{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff}summary{cursor:pointer;font-weight:650}
+    form{display:grid;gap:14px}.field{display:grid;gap:6px}.field label{font-weight:600}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;color:var(--text);font:inherit}.field textarea{min-height:82px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card-head{display:flex;gap:10px;justify-content:space-between;align-items:start;margin-bottom:10px}.channel-card{display:grid;gap:10px}.channel-meta{display:flex;flex-wrap:wrap;gap:6px}.badge{border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted);background:#fff}.badge.bad{border-color:#f4b7ae;color:var(--red);background:#fff6f4}.badge.ok{border-color:#a9e7ca;color:var(--green);background:#f3fcf7}.diagnostic-box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;background:#fff;padding:10px;white-space:pre-wrap;word-break:break-word}.diagnostic-box.bad{border-left-color:var(--red)}.diagnostic-box.ok{border-left-color:var(--green)}.toast{position:fixed;right:18px;bottom:18px;max-width:min(420px,calc(100vw - 36px));border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px 14px;box-shadow:0 14px 34px rgba(16,24,40,.13);z-index:10}.toast[hidden]{display:none}.small-button{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;cursor:pointer;touch-action:manipulation}.debug-details{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff}.debug-details summary{cursor:pointer;font-weight:650}.safe-code-block,.safe-log-block{white-space:pre-wrap;margin:8px 0 0;font-size:12px;overflow:auto}.safe-long-text{min-width:0}.diagnostic-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.8fr) minmax(0,2fr);gap:10px;border-bottom:1px solid var(--line);padding:8px 0;align-items:start}.diagnostic-row:last-child{border-bottom:0}
     .actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}.actions button,.actions a{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 12px;cursor:pointer;text-decoration:none;touch-action:manipulation}.actions button:hover,.actions a:hover,.small-button:hover{border-color:var(--blue);color:var(--blue)}
     .notice{border-left:4px solid var(--amber);background:#fffaf0}.metric-line{font-weight:650;margin-bottom:8px}.event-row{border-bottom:1px solid var(--line);padding:8px 0}.event-row:last-child{border-bottom:0}.compact-kv{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(0,1.2fr);gap:6px 10px}.compact-kv div:nth-child(odd){color:var(--muted)}pre{white-space:pre-wrap;margin:8px 0 0;font-size:12px}
     @media (max-width:820px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-<a class="skip-link" href="#main">Skip to main content</a>
+<a class="skip-link" href="#main" data-i18n="skip_to_main">Skip to main content</a>
 <div class="shell">
   <aside>
     <div class="brand" translate="no">AI News Monitor</div>
-    <nav class="nav" aria-label="Console sections">
+    <nav class="nav" aria-label="Console sections" data-i18n-aria-label="console_sections">
       <button type="button" data-tab="dashboard" aria-selected="true">Dashboard</button>
       <button type="button" data-tab="sources">Sources</button>
       <button type="button" data-tab="notifications">Notifications</button>
@@ -1351,7 +1364,7 @@ def _index_html() -> str:
     <section id="dashboard" class="section active" aria-labelledby="dashboard-title">
       <h1 id="dashboard-title" data-i18n="local_control_console">Local Control Console</h1>
       <p class="sub" data-i18n="local_console_subtitle">Live status for the local monitor server.</p>
-      <div class="actions" aria-label="Monitor controls">
+      <div class="actions" aria-label="Monitor controls" data-i18n-aria-label="monitor_controls">
         <button type="button" data-action="start">Start</button>
         <button type="button" data-action="pause">Pause</button>
         <button type="button" data-action="resume">Resume</button>
@@ -1359,7 +1372,7 @@ def _index_html() -> str:
         <button type="button" data-action="run_once">Run Once</button>
         <button type="button" data-action="e2e_test">E2E Test</button>
       </div>
-      <div class="card notice" id="pauseWarning" hidden>Monitoring is paused. No new alerts will be sent until you resume.</div>
+      <div class="card notice" id="pauseWarning" data-i18n="monitoring_paused_warning" hidden>Monitoring is paused. No new alerts will be sent until you resume.</div>
       <div class="card wizard" id="wizard" hidden>
         <h2 data-i18n="setup.title">First-run Setup</h2>
         <ol class="steps">
@@ -1372,8 +1385,8 @@ def _index_html() -> str:
       <section class="grid" id="stats" aria-live="polite"></section>
       <section class="panel-grid">
         <div class="card"><h2 data-i18n="connection_health">Connection Health</h2><div class="list" id="health">-</div></div>
-        <div class="card"><h2>Pipeline Funnel</h2><div class="list" id="pipelineFunnel">-</div></div>
-        <div class="card"><h2>Notification Health</h2><div class="list" id="notificationSummary">-</div></div>
+        <div class="card"><h2 data-i18n="pipeline_funnel">Pipeline Funnel</h2><div class="list" id="pipelineFunnel">-</div></div>
+        <div class="card"><h2 data-i18n="notification_health">Notification Health</h2><div class="list" id="notificationSummary">-</div></div>
         <div class="card"><h2 data-i18n="coverage_quality">Coverage Quality</h2><div class="list" id="coverageQuality">-</div></div>
         <div class="card"><h2 data-i18n="intelligence_gaps">Intelligence Gaps</h2><div class="list" id="gapRows">-</div></div>
         <div class="card"><h2 data-i18n="live_events">Real-time Events</h2><div class="list" id="events" aria-live="polite">Connecting...</div></div>
@@ -1406,7 +1419,7 @@ def _index_html() -> str:
         <div class="card"><h2 data-i18n="topic_overview">Topic Overview</h2><div class="table" id="topicCards"></div></div>
       </div>
     </section>
-    <section id="alerts" class="section" aria-labelledby="alerts-title"><h1 id="alerts-title" data-i18n="alerts">Alerts</h1><div class="panel-grid"><div class="card"><h2 data-i18n="recent_matches">Recent Matches</h2><div class="list" id="matchRows"></div></div><div class="card"><h2 data-i18n="recent_alerts">Recent Alerts</h2><div class="list" id="alertRows"></div></div></div></section>
+    <section id="alerts" class="section" aria-labelledby="alerts-title"><h1 id="alerts-title" data-i18n="alerts">Alerts</h1><div class="panel-grid"><div class="card"><h2 data-i18n="event_clusters">Event Clusters</h2><div class="list" id="eventRows"></div></div><div class="card"><h2 data-i18n="recent_alerts">Recent Alerts</h2><div class="list" id="alertRows"></div></div><div class="card"><h2 data-i18n="recent_matches">Recent Matches</h2><div class="list" id="matchRows"></div></div></div></section>
     <section id="diagnostics" class="section" aria-labelledby="diagnostics-title"><h1 id="diagnostics-title" data-i18n="diagnostics">Diagnostics</h1><div class="panel-grid"><div class="card"><h2 data-i18n="runtime">Runtime</h2><div class="list" id="diagnosticsRows"></div></div><div class="card"><h2 data-i18n="errors">Errors</h2><div class="list" id="errorRows"></div></div></div></section>
     <section id="logs" class="section" aria-labelledby="logs-title"><h1 id="logs-title" data-i18n="logs">Logs</h1><div class="card list" id="logRows"></div></section>
   </main>
@@ -1430,6 +1443,7 @@ const customSourceCards = document.getElementById('customSourceCards');
 const notifierCards = document.getElementById('notifierCards');
 const topicSummary = document.getElementById('topicSummary');
 const topicCards = document.getElementById('topicCards');
+const eventRows = document.getElementById('eventRows');
 const matchRows = document.getElementById('matchRows');
 const alertRows = document.getElementById('alertRows');
 const diagnosticsRows = document.getElementById('diagnosticsRows');
@@ -1446,20 +1460,33 @@ let eventItems = [];
 const reliabilityEndpoints = ['/api/readiness','/api/source-health','/api/intelligence-gaps','/api/coverage-quality','/api/source-packages'];
 function esc(value){return String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function t(key, lang){ return (localeCatalog[lang] || localeCatalog.en || {})[key] || (localeCatalog.en || {})[key] || key; }
-function row(name, state, detail){return `<div class="row"><strong>${esc(name)}</strong><span>${esc(state)}</span><span>${esc(detail || '-')}</span></div>`;}
+function normalizedKey(value){return String(value ?? '').trim().replace(/[\\s-]+/g, '_').toLowerCase();}
+function labelFor(value, lang){
+  const key = normalizedKey(value);
+  const translated = t(key, lang);
+  return translated === key ? String(value ?? '-') : translated;
+}
+function displayValueFor(key, value, lang){
+  if(key === 'output_language') return value === 'zh-CN' ? t('language_zh_cn', lang) : t('language_en', lang);
+  if(['state','alert_mode','llm_health','coverage_quality','readiness'].includes(key)) return labelFor(value, lang);
+  if(typeof value === 'boolean') return value ? t('yes', lang) : t('no', lang);
+  return value ?? '-';
+}
+function row(name, state, detail){return `<div class="diagnostic-row"><strong class="safe-long-text">${esc(name)}</strong><span class="safe-long-text">${esc(labelFor(state, currentLang))}</span><span class="safe-long-text">${esc(detail || '-')}</span></div>`;}
 function statusBadge(value, lang){
-  const label = t(value, lang);
-  const stateClass = ['ok','healthy','configured','enabled','fresh','high','ready','success'].includes(String(value)) ? 'ok' : (['error','failed','unconfigured','missing_api_key','very_stale','critical','low','not_ready'].includes(String(value)) ? 'bad' : '');
+  const key = normalizedKey(value);
+  const label = labelFor(value, lang);
+  const stateClass = ['ok','healthy','configured','enabled','fresh','high','ready','success','running'].includes(key) ? 'ok' : (['error','failed','unconfigured','missing_api_key','very_stale','critical','low','not_ready','stopped'].includes(key) ? 'bad' : '');
   return `<span class="badge ${stateClass}">${esc(label)}</span>`;
 }
 function safeJson(value){ try { return JSON.stringify(value || {}, null, 2); } catch(err) { return String(value || '-'); } }
 function detailsBlock(value){
-  return `<details><summary>Show details</summary><button type="button" class="small-button" data-copy="${esc(safeJson(value))}">Copy diagnostics</button><pre>${esc(safeJson(value))}</pre></details>`;
+  return `<details class="debug-details"><summary>${esc(t('show_details', currentLang))}</summary><button type="button" class="small-button" data-copy="${esc(safeJson(value))}">${esc(t('copy_diagnostics', currentLang))}</button><pre class="safe-code-block">${esc(safeJson(value))}</pre></details>`;
 }
 function kvRows(value){
   const entries = Object.entries(value || {});
   if(!entries.length) return '<span class="empty">-</span>';
-  return `<div class="compact-kv">${entries.map(([k,v])=>`<div>${esc(k)}</div><div>${esc(v)}</div>`).join('')}</div>`;
+  return `<div class="compact-kv">${entries.map(([k,v])=>`<div>${esc(labelFor(k, currentLang))}</div><div>${esc(labelFor(v, currentLang))}</div>`).join('')}</div>`;
 }
 function formatTime(value, lang){
   if(!value) return '-';
@@ -1475,10 +1502,10 @@ function showToast(message){
 }
 function sourceSummaryLine(name, state){
   if(typeof state === 'string') return `${name}: ${state}`;
-  const health = state.health || state.freshness_state || 'unknown';
+  const health = labelFor(state.health || state.freshness_state || 'unknown', currentLang);
   const category = state.last_error_category ? ` · ${state.last_error_category}` : '';
-  const retry = state.next_retry_at ? ` · retry ${formatTime(state.next_retry_at, currentLang)}` : '';
-  const count = Number.isFinite(Number(state.articles || state.last_article_count)) ? ` · ${state.articles || state.last_article_count || 0} articles` : '';
+  const retry = state.next_retry_at ? ` · ${t('retry', currentLang)} ${formatTime(state.next_retry_at, currentLang)}` : '';
+  const count = Number.isFinite(Number(state.articles || state.last_article_count)) ? ` · ${state.articles || state.last_article_count || 0} ${t('articles', currentLang)}` : '';
   return `${name}: ${health}${category}${retry}${count}`;
 }
 function renderPipeline(funnel){
@@ -1486,12 +1513,40 @@ function renderPipeline(funnel){
   const reasons = (funnel.top_rejection_reasons || []).map(item => `${item.count} ${item.reason}`).join('\\n') || '-';
   const main = funnel.concise_summary || `Fetched ${funnel.articles_fetched || 0} -> Alerts ${funnel.alerts_saved || 0}`;
   const result = funnel.result ? statusBadge(funnel.result, currentLang) : '';
-  return `<div class="metric-line">${esc(main)} ${result}</div><div>${esc(funnel.zero_alert_explanation || '-')}</div><div class="hint">${esc(funnel.recommended_action || '-')}</div><div class="hint">${esc(reasons)}</div>${detailsBlock(funnel)}`;
+  const counts = funnel.diagnostic_counts ? `<div class="hint">${esc(t('pipeline_stage_details', currentLang))}</div>${kvRows(funnel.diagnostic_counts)}` : '';
+  return `<div class="metric-line safe-long-text">${esc(main)} ${result}</div><div class="safe-long-text">${esc(funnel.zero_alert_explanation || '-')}</div><div class="hint safe-long-text">${esc(funnel.recommended_action || '-')}</div><div class="hint safe-long-text">${esc(reasons)}</div>${counts}${detailsBlock(funnel)}`;
+}
+function renderTimelinePreview(items, lang){
+  const rows = (items || []).slice(0, 4).map(item => {
+    const time = item.time ? ` ${item.time}` : '';
+    const label = item.description || item.label || '-';
+    return `- ${esc(item.date || 'unknown')}${esc(time)}: ${esc(label)}`;
+  });
+  return rows.join('<br>') || esc(t('empty_timeline', lang));
+}
+function renderSourceLinks(items, lang){
+  const links = (items || []).slice(0, 5).map(item => {
+    const title = item.title || item.source_title || item.url || '-';
+    const publisher = item.publisher ? `${item.publisher} — ` : '';
+    const url = item.url || item.source_url || '#';
+    return `<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(publisher + title)}</a>`;
+  });
+  return links.join('<br>') || esc(t('empty_sources', lang));
+}
+function renderEventCards(items, lang){
+  return (items || []).map(event => {
+    const latest = formatTime(event.latest_update_time || event.sent_at, lang);
+    const articleCount = event.article_count || event.grouped_article_count || 1;
+    const summary = event.summary || event.current_status || '-';
+    const timeline = renderTimelinePreview(event.timeline_preview || event.timeline, lang);
+    const sources = renderSourceLinks(event.sources || event.source_links, lang);
+    return `<div class="event-row"><strong class="safe-long-text">${esc(event.event_title || event.title || '-')}</strong><br><span class="hint">${esc(t('grouped_articles', lang))}: ${esc(articleCount)} · ${esc(t('latest_update_time', lang))}: ${esc(latest)} · ${esc(t('confidence', lang))}: ${esc(event.confidence ?? '-')}</span><br><span class="safe-long-text">${esc(summary)}</span><br><span class="hint">${esc(t('timeline', lang))}</span><br>${timeline}<br><span class="hint">${esc(t('sources', lang))}</span><br>${sources}<br><span class="hint">${esc(t('relation_reason', lang))}: ${esc(event.relation_reason || '-')}</span>${detailsBlock(event)}</div>`;
+  }).join('') || `<span class="empty">${esc(t('empty_event_clusters', lang))}</span>`;
 }
 function renderNotificationSummary(status){
   const states = status.notifier_states || {};
   const entries = Object.entries(states).filter(([, state]) => state.enabled);
-  if(!entries.length) return '<span class="empty">No enabled notification channels.</span>';
+  if(!entries.length) return `<span class="empty">${esc(t('no_enabled_notification_channels', currentLang))}</span>`;
   return entries.map(([name,state]) => {
     const health = state.health || status.notifier_health?.[name] || 'not_checked';
     const detail = state.last_error_category || state.last_error_message || state.last_success_time || '-';
@@ -1516,6 +1571,7 @@ function applyLocale(lang){
   currentLang = lang === 'zh-CN' ? 'zh-CN' : 'en';
   document.documentElement.lang = currentLang;
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n, currentLang); });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel, currentLang)); });
   document.querySelectorAll('[data-tab]').forEach(el => { el.textContent = t(el.dataset.tab, currentLang); });
   document.querySelectorAll('[data-action]').forEach(el => { el.textContent = t(el.dataset.action, currentLang); });
   if(!events.dataset.live){ events.textContent = t('connecting', currentLang); }
@@ -1531,7 +1587,7 @@ function renderStatus(s){
     ['queue_length', s.queue_length], ['alerts_sent_today', s.alerts_sent_today], ['live_event_count', s.live_event_count],
     ['output_language', s.output_language], ['alert_mode', s.alert_mode]
   ];
-  stats.innerHTML = items.map(([k,v])=>`<div class="card"><div class="label">${esc(t(k, lang))}</div><div class="value">${esc(v)}</div></div>`).join('');
+  stats.innerHTML = items.map(([k,v])=>`<div class="card"><div class="label">${esc(t(k, lang))}</div><div class="value">${esc(displayValueFor(k, v, lang))}</div></div>`).join('');
   health.innerHTML = renderReadiness(s.readiness);
   pipelineFunnel.innerHTML = renderPipeline(s.pipeline_funnel || s.e2e_result);
   notificationSummary.innerHTML = renderNotificationSummary(s);
@@ -1540,16 +1596,17 @@ function renderStatus(s){
   const gaps = s.intelligence_gaps || {};
   const critical = gaps.critical_gaps || [];
   const degraded = gaps.degraded_groups || [];
-  gapRows.innerHTML = [...critical, ...degraded].slice(0, 8).map(g=>`${esc(g.name)}: ${esc(g.severity)} - ${esc(g.reason)}\\n${esc(t('recommended_action', lang))}: ${esc(g.recommended_action)}`).join('\\n\\n') || esc(t('no_intelligence_gaps', lang));
+  gapRows.innerHTML = [...critical, ...degraded].slice(0, 8).map(g=>`${esc(g.name)}: ${esc(labelFor(g.severity, lang))} - ${esc(g.reason)}\\n${esc(t('recommended_action', lang))}: ${esc(g.recommended_action)}`).join('\\n\\n') || esc(t('no_intelligence_gaps', lang));
   sourceRows.innerHTML = Object.entries(s.source_states || s.source_health || {}).map(([k,v])=>row(k, v.freshness_state || v.health || v, sourceSummaryLine(k, v))).join('') || `<div class="empty">${esc(t('empty_sources', lang))}</div>`;
   sourceSummary.innerHTML = kvRows(s.source_summary || {});
-  cacheBackoffSummary.innerHTML = `<div class="metric-line">Cache</div>${kvRows(s.source_cache_summary || {})}<div class="metric-line">Backoff</div>${kvRows(s.source_backoff_summary || {})}`;
+  cacheBackoffSummary.innerHTML = `<div class="metric-line">${esc(t('cache', lang))}</div>${kvRows(s.source_cache_summary || {})}<div class="metric-line">${esc(t('backoff', lang))}</div>${kvRows(s.source_backoff_summary || {})}`;
   tierRows.innerHTML = kvRows(s.source_tier_distribution || {});
-  topFailingSources.textContent = (s.top_failing_sources || []).map(item=>`${item.source}: ${item.freshness_state} (${item.failure_count}) ${item.last_error_category || ''}`).join('\\n') || t('empty_errors', lang);
+  topFailingSources.textContent = (s.top_failing_sources || []).map(item=>`${item.source}: ${labelFor(item.freshness_state, lang)} (${item.failure_count}) ${item.last_error_category || ''}`).join('\\n') || t('empty_errors', lang);
   topicSummary.textContent = `${s.active_topics_count || 0} ${t('active_topics_count', lang)}`;
+  eventRows.innerHTML = renderEventCards([...(s.recent_alerts || []), ...(s.recent_event_clusters || [])], lang);
   matchRows.innerHTML = (s.recent_matches || []).map(a=>`[${esc(a.score)}] ${esc(a.topic)} - <a href="${esc(a.url)}" target="_blank" rel="noreferrer">${esc(a.title)}</a>\\n${esc(a.source || '-')} - ${esc(a.reason || '-')}`).join('\\n\\n') || t('empty_matches', lang);
-  alertRows.innerHTML = (s.recent_alerts || []).map(a=>`[${esc(a.score)}] ${esc(a.topic)} - <a href="${esc(a.url)}" target="_blank" rel="noreferrer">${esc(a.title)}</a>`).join('\\n') || t('empty_alerts', lang);
-  diagnosticsRows.innerHTML = kvRows({server:s.local_server_url,state:s.state,llmHealth:s.llm_health,lastFetch:formatTime(s.last_fetch_time, lang),lastLLM:formatTime(s.last_llm_analysis_time, lang),lastAlert:formatTime(s.last_alert_sent_time, lang)}) + detailsBlock({coverage:s.coverage_quality,endpoints:reliabilityEndpoints,pipeline:s.pipeline_funnel});
+  alertRows.innerHTML = renderEventCards(s.recent_alerts || [], lang);
+  diagnosticsRows.innerHTML = kvRows({server:s.local_server_url,state:s.state,llm_health:s.llm_health,last_fetch_time:formatTime(s.last_fetch_time, lang),last_llm_analysis_time:formatTime(s.last_llm_analysis_time, lang),last_alert_sent_time:formatTime(s.last_alert_sent_time, lang)}) + detailsBlock({coverage:s.coverage_quality,endpoints:reliabilityEndpoints,pipeline:s.pipeline_funnel});
   errorRows.textContent = s.error_message || t('empty_errors', lang);
   logRows.textContent = (s.recent_logs || []).join('\\n') || t('empty_logs', lang);
 }
@@ -1560,9 +1617,9 @@ function renderSetup(setup){
   wizard.hidden = !setup.setup_required;
   packageRows.innerHTML = (setup.sources?.packages || []).map(pkg => {
     const state = pkg.enabled ? t('enabled', lang) : t('disabled', lang);
-    const detail = `${pkg.enabled_source_count || 0}/${pkg.source_count || 0} ${t('sources', lang)} · ${pkg.fresh_source_count || 0} fresh · ${pkg.failing_source_count || 0} failing`;
-    const action = pkg.enabled ? 'Enabled in desktop app' : 'Enable in desktop app';
-    return `<div class="row"><strong>${esc(pkg.name || pkg.id)}</strong><span>${esc(state)}</span><span>${esc(detail)}<br>${esc((pkg.warnings || []).join('; ') || pkg.recommended_action || pkg.expected_coverage || '')}<br><span class="hint">${esc(pkg.recommended_use_case || '')}</span><br><span class="hint">Last package test: ${esc(formatTime(pkg.last_package_test, lang))}</span><br><button type="button" class="small-button" disabled>${esc(action)}</button></span></div>`;
+    const detail = `${pkg.enabled_source_count || 0}/${pkg.source_count || 0} ${t('sources', lang)} · ${pkg.fresh_source_count || 0} ${t('fresh_count', lang)} · ${pkg.failing_source_count || 0} ${t('failing_count', lang)}`;
+    const action = pkg.enabled ? t('enabled_in_desktop_app', lang) : t('enable_in_desktop_app', lang);
+    return `<div class="diagnostic-row"><strong class="safe-long-text">${esc(pkg.name || pkg.id)}</strong><span class="safe-long-text">${esc(state)}</span><span class="safe-long-text">${esc(detail)}<br>${esc((pkg.warnings || []).join('; ') || pkg.recommended_action || pkg.expected_coverage || '')}<br><span class="hint">${esc(pkg.recommended_use_case || '')}</span><br><span class="hint">${esc(t('last_package_test', lang))}: ${esc(formatTime(pkg.last_package_test, lang))}</span><br><button type="button" class="small-button" disabled>${esc(action)}</button></span></div>`;
   }).join('') || `<div class="empty">${esc(t('empty_sources', lang))}</div>`;
   const enabledPackages = new Set(setup.sources?.enabled_packages || []);
   const enabledLibrary = (setup.sources?.library || []).filter(source => source.enabled || (source.packages || []).some(id => enabledPackages.has(id)));
@@ -1573,7 +1630,7 @@ function renderSetup(setup){
     return `<div class="card channel-card"><div class="card-head"><div><h3>${esc(source.name)}</h3><div class="channel-meta"><span class="badge">${esc(t('tier', lang))} ${esc(source.source_tier)}</span><span class="badge">${esc(source.source_role)}</span><span class="badge">${esc(source.category)}</span><span class="badge">${esc(source.language)}</span><span class="badge">${esc(source.propaganda_risk)}</span>${statusBadge(source.freshness_state || source.health || 'not_checked', lang)}</div></div></div><div class="hint">${esc(sourceSummaryLine(source.name, source))}</div>${detailsBlock(source)}<div class="actions"><a class="small-button" href="${esc(website)}" target="_blank" rel="noreferrer">${esc(t('settings.open_source_website', lang))}</a>${help}</div></div>`;
   }).join('') || `<div class="empty">${esc(t('empty_sources', lang))}</div>`;
   customSourceCards.innerHTML = (setup.sources?.custom_sources || []).map(source => {
-    return `<div class="row"><strong>${esc(source.name)}</strong><span>${esc(source.default_language || source.kind || 'rss')}</span><span><a href="${esc(source.url)}" target="_blank" rel="noreferrer">${esc(t('source_url', lang))}</a></span></div>`;
+    return `<div class="diagnostic-row"><strong class="safe-long-text">${esc(source.name)}</strong><span class="safe-long-text">${esc(source.default_language || source.kind || 'rss')}</span><span class="safe-long-text"><a href="${esc(source.url)}" target="_blank" rel="noreferrer">${esc(t('source_url', lang))}</a></span></div>`;
   }).join('') || `<div class="empty">${esc(t('empty_custom_sources', lang))}</div>`;
   notifierCards.innerHTML = Object.entries(setup.notifications?.channels || {}).map(([key, ch]) => {
     const health = ch.health || {};
@@ -1608,7 +1665,7 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('[data-copy]');
   if(!button) return;
   await navigator.clipboard.writeText(button.dataset.copy || '');
-  showToast('Diagnostics copied.');
+  showToast(t('diagnostics_copied', currentLang));
 });
 document.querySelectorAll('.nav button').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('.nav button').forEach(item => item.setAttribute('aria-selected', String(item === button)));
@@ -1618,12 +1675,12 @@ document.querySelectorAll('.nav button').forEach(button => button.addEventListen
 if(location.hash){const target=document.querySelector(`[data-tab="${location.hash.slice(1)}"]`);if(target)target.click();}
 const es = new EventSource('/events');
 function eventSummary(name, payload){
-  if(name === 'source_fetch') return `${name} · ${payload.source || '-'} · ${payload.ok ? 'ok' : 'failed'}${payload.category ? ' · ' + payload.category : ''}`;
-  if(name === 'cycle_completed') return `${name} · ${payload.pipeline || '-'} · ${payload.result || '-'}`;
-  if(name === 'notification_result') return `${name} · ${payload.notifier || '-'} · ${payload.ok ? 'ok' : 'failed'}`;
+  if(name === 'source_fetch') return `${name} · ${payload.source || '-'} · ${payload.ok ? t('ok', currentLang) : t('failed', currentLang)}${payload.category ? ' · ' + payload.category : ''}`;
+  if(name === 'cycle_completed') return `${name} · ${payload.pipeline || '-'} · ${labelFor(payload.result || '-', currentLang)}`;
+  if(name === 'notification_result') return `${name} · ${payload.notifier || '-'} · ${payload.ok ? t('ok', currentLang) : t('failed', currentLang)}`;
   if(name === 'alert_sent') return `${name} · ${payload.topic || '-'} · ${payload.relevance_score || '-'}`;
   if(name === 'candidate_ranked') return `${name} · ${payload.source || '-'} · ${payload.ranking_score || '-'}`;
-  if(name === 'status') return `${name} · ${payload.status || '-'}`;
+  if(name === 'status') return `${name} · ${labelFor(payload.status || '-', currentLang)}`;
   return name;
 }
 function addEvent(name, data){

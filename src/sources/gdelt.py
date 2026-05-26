@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from urllib.parse import quote_plus
 
 import httpx
@@ -12,6 +13,17 @@ from src.utils.text_utils import clean_text
 from src.utils.time_utils import parse_datetime
 
 logger = logging.getLogger(__name__)
+
+_GDELT_SHORT_TOKEN_EXPANSIONS = {
+    "AI": "artificial intelligence",
+    "US": "United States",
+    "U.S": "United States",
+    "U.S.": "United States",
+    "UK": "United Kingdom",
+    "EU": "European Union",
+}
+_GDELT_FRAGMENT_STOPWORDS = {"a", "an", "and", "or", "not", "the", "of", "for", "to", "in", "on", "with"}
+_GDELT_TERM_MAX_LENGTH = 120
 
 
 class GdeltSource(NewsSource):
@@ -66,14 +78,52 @@ class GdeltSource(NewsSource):
 
 
 def build_gdelt_query(topic: TopicConfig, *, keyword_limit: int = 8) -> str:
-    keywords = [keyword.strip() for keyword in topic.keywords if keyword.strip()]
-    terms = [f'"{keyword}"' for keyword in keywords[:keyword_limit]]
-    if len(terms) > 1:
-        query = f"({' OR '.join(terms)})"
-    else:
-        query = terms[0] if terms else topic.name.strip()
-    validate_gdelt_query(query)
-    return query
+    keywords = _sanitized_keyword_list(topic.keywords, keyword_limit=keyword_limit)
+    if not keywords:
+        fallback = sanitize_gdelt_keyword(topic.name)
+        keywords = [fallback] if fallback else []
+    if not keywords:
+        raise ValueError("unsupported_query_shape: empty GDELT query")
+    while keywords:
+        terms = [f'"{keyword}"' for keyword in keywords]
+        query = f"({' OR '.join(terms)})" if len(terms) > 1 else terms[0]
+        try:
+            validate_gdelt_query(query)
+            return query
+        except ValueError as exc:
+            if len(keywords) > 1 and str(exc).startswith(("query_too_long:", "invalid_encoded_query:")):
+                keywords.pop()
+                continue
+            raise
+    raise ValueError("unsupported_query_shape: empty GDELT query")
+
+
+def sanitize_gdelt_keyword(keyword: object) -> str | None:
+    text = " ".join(str(keyword or "").split())
+    if not text:
+        return None
+    text = text.translate(str.maketrans({"“": "", "”": "", "‘": "", "’": "", "`": "", "´": "", '"': "", "'": ""}))
+    text = re.sub(r"[|{}<>\\]", " ", text)
+    text = re.sub(r"\s+[,;:]+\s+", " ", text)
+    text = re.sub(r"^[^\w]+|[^\w]+$", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" \t\r\n,.;:-_/()[]")
+    if not text:
+        return None
+    normalized = re.sub(r"\s+", " ", text)
+    expansion_key = normalized.upper()
+    if expansion_key in _GDELT_SHORT_TOKEN_EXPANSIONS:
+        return _GDELT_SHORT_TOKEN_EXPANSIONS[expansion_key]
+    tokens = re.findall(r"[A-Za-z0-9]+", normalized)
+    if not tokens or all(token.casefold() in _GDELT_FRAGMENT_STOPWORDS for token in tokens):
+        return None
+    alnum = "".join(tokens)
+    if len(alnum) < 3:
+        return None
+    if len(normalized) > _GDELT_TERM_MAX_LENGTH:
+        normalized = (
+            normalized[:_GDELT_TERM_MAX_LENGTH].rsplit(" ", 1)[0].strip() or normalized[:_GDELT_TERM_MAX_LENGTH]
+        )
+    return normalized
 
 
 def gdelt_params_for_topic(topic: TopicConfig, *, max_records: int = 20) -> dict[str, str]:
@@ -96,6 +146,31 @@ def validate_gdelt_query(query: str) -> None:
         raise ValueError("invalid_encoded_query: query appears malformed after URL encoding")
     if query.count('"') % 2:
         raise ValueError("unsupported_query_shape: unbalanced quote in GDELT query")
+    quoted_phrases = re.findall(r'"([^"]*)"', query)
+    for phrase in quoted_phrases:
+        if len(re.sub(r"[^A-Za-z0-9]", "", phrase)) < 3:
+            raise ValueError("unsupported_query_shape: quoted phrase is too short")
+    if not quoted_phrases:
+        tokens = re.findall(r"[A-Za-z0-9]+", query)
+        if tokens and all(len(token) < 3 for token in tokens):
+            raise ValueError("unsupported_query_shape: query phrase is too short")
+
+
+def _sanitized_keyword_list(keywords: list[str], *, keyword_limit: int) -> list[str]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for keyword in keywords:
+        sanitized = sanitize_gdelt_keyword(keyword)
+        if not sanitized:
+            continue
+        key = sanitized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(sanitized)
+        if len(output) >= keyword_limit:
+            break
+    return output
 
 
 def parse_gdelt_json_response(response: httpx.Response) -> dict:

@@ -16,7 +16,17 @@ from src.diagnostics import (
     is_valid_http_url,
     missing_required_result,
 )
-from src.models import Article, LLMAnalysis, LLMSettings, MarketWatchSuggestion, TopicConfig
+from src.event_synthesis import build_timeline, cluster_to_llm_payload, source_links_from_articles
+from src.models import (
+    Article,
+    EventCluster,
+    LLMAnalysis,
+    LLMSettings,
+    MarketWatchSuggestion,
+    SourceLink,
+    TimelineItem,
+    TopicConfig,
+)
 from src.secrets import get_env_secret, sanitize_for_log
 from src.utils.http_utils import request_with_retries
 
@@ -189,9 +199,31 @@ class LLMClient:
         }
 
     def analyze_article(self, topic: TopicConfig, article: Article) -> LLMAnalysis:
+        return self._analyze_messages(
+            self._build_messages(topic, [article], event_payload=None),
+            fallback_articles=[article],
+            fallback_relation_reason="Single source event cluster; no related articles were available in this cycle.",
+            fallback_article_count=1,
+        )
+
+    def analyze_event_cluster(self, topic: TopicConfig, cluster: EventCluster) -> LLMAnalysis:
+        return self._analyze_messages(
+            self._build_messages(topic, cluster.articles, event_payload=cluster_to_llm_payload(cluster)),
+            fallback_articles=cluster.articles,
+            fallback_relation_reason=cluster.relation_reason,
+            fallback_article_count=cluster.article_count,
+        )
+
+    def _analyze_messages(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        fallback_articles: list[Article],
+        fallback_relation_reason: str,
+        fallback_article_count: int,
+    ) -> LLMAnalysis:
         if not self.api_key:
             raise LLMError("LLM API key is missing.")
-        messages = self._build_messages(topic, article)
         content = ""
         try:
             content = self._chat(
@@ -199,7 +231,12 @@ class LLMClient:
                 response_schema=_analysis_response_schema(),
                 response_name="ai_news_monitor_analysis",
             )
-            return parse_llm_analysis(content)
+            return _with_event_defaults(
+                parse_llm_analysis(content),
+                fallback_articles,
+                fallback_relation_reason,
+                fallback_article_count,
+            )
         except (LLMError, ValueError) as first_error:
             logger.warning("LLM returned invalid JSON, trying repair once: %s", first_error)
             repair_messages = [
@@ -220,7 +257,12 @@ class LLMClient:
                 response_schema=_analysis_response_schema(),
                 response_name="ai_news_monitor_analysis_repair",
             )
-            return parse_llm_analysis(content)
+            return _with_event_defaults(
+                parse_llm_analysis(content),
+                fallback_articles,
+                fallback_relation_reason,
+                fallback_article_count,
+            )
 
     def translate_and_summarize(self, article: Article, target_language: str) -> dict[str, str]:
         if not self.api_key:
@@ -258,32 +300,50 @@ class LLMClient:
         )
         return {key: str(data.get(key, "")) for key in schema}
 
-    def _build_messages(self, topic: TopicConfig, article: Article) -> list[dict[str, str]]:
-        article_payload = {
-            "title": article.title,
-            "snippet": article.snippet,
-            "source": article.source,
-            "published_at": article.published_at.isoformat() if article.published_at else None,
-            "url": article.url,
-            "language": article.language,
-            "translated_title": article.translated_title,
-            "translated_snippet": article.translated_snippet,
-            "short_summary": article.short_summary,
-            "source_reliability_score": article.reliability_score,
-            "source_ownership": article.ownership,
-            "source_bias_hint": article.bias_hint,
-            "ranking_score": article.ranking_score,
-            "bias_context": (article.raw or {}).get("bias_summary") if article.raw else None,
-        }
+    def _build_messages(
+        self,
+        topic: TopicConfig,
+        articles: list[Article],
+        *,
+        event_payload: dict[str, Any] | None,
+    ) -> list[dict[str, str]]:
         # Structured Outputs enforces this shape through response_format.json_schema
         # when the configured provider supports it. The compact schema prompt remains
         # as compatibility guidance for JSON-object fallback providers.
         schema = {
             "relevance_score": 0,
             "is_actionable_alert": False,
+            "should_notify": False,
             "event_type": "",
+            "event_title": "",
+            "event_summary": "",
+            "current_status": "",
             "summary": "",
             "why_it_matters": "",
+            "timeline": [
+                {
+                    "date": "YYYY-MM-DD or unknown",
+                    "time": "HH:MM or null",
+                    "label": "",
+                    "description": "",
+                    "source_title": "",
+                    "source_url": "",
+                    "confidence": 0.0,
+                }
+            ],
+            "key_facts": [""],
+            "affected_entities": [""],
+            "source_links": [
+                {
+                    "title": "",
+                    "url": "",
+                    "publisher": "",
+                    "published_at": "",
+                }
+            ],
+            "relation_reason": "",
+            "uncertainties": [""],
+            "suggested_actions": [""],
             "market_watch_suggestions": [
                 {
                     "ticker": "",
@@ -302,16 +362,24 @@ class LLMClient:
             "notification_title": "",
         }
         system = (
-            "You are an AI news monitoring analyst. Use only the provided article content and links. "
-            "Do not fabricate facts. If information is incomplete, state uncertainty. "
-            "Do not provide personalized financial advice. Return strict JSON only."
+            "You are an AI news monitoring analyst. You may receive one article or multiple related articles. "
+            "Summarize them as one event, not as separate disconnected summaries. Build the timeline only from "
+            "provided source text and metadata; do not invent dates, companies, policies, products, or causal "
+            "relationships. Distinguish confirmed facts from interpretation, prefer official or primary sources "
+            "when sources conflict, keep the output concise enough for phone notification channels, and include "
+            "links to all important sources. Use natural Simplified Chinese when output_language is zh-CN and "
+            "clean English when output_language is en. Technical names such as NVIDIA, TSMC, HBM, GDELT, RSS, "
+            "and LLM may remain English. Do not provide personalized financial advice. Return strict JSON only."
         )
         user = {
             "topic_prompt": topic.prompt,
             "output_language": topic.output_language,
             "keywords": topic.keywords,
             "related_stock_watchlist_candidates": topic.related_stocks,
-            "article": article_payload,
+            "event_cluster": event_payload,
+            "articles": (
+                event_payload["articles"] if event_payload else [_article_payload(article) for article in articles]
+            ),
             "required_schema": schema,
         }
         return [
@@ -413,9 +481,20 @@ def _analysis_response_schema() -> dict[str, Any]:
         "required": [
             "relevance_score",
             "is_actionable_alert",
+            "should_notify",
             "event_type",
+            "event_title",
+            "event_summary",
+            "current_status",
             "summary",
             "why_it_matters",
+            "timeline",
+            "key_facts",
+            "affected_entities",
+            "source_links",
+            "relation_reason",
+            "uncertainties",
+            "suggested_actions",
             "market_watch_suggestions",
             "bullish_path",
             "bearish_path",
@@ -434,11 +513,59 @@ def _analysis_response_schema() -> dict[str, Any]:
             },
             "is_actionable_alert": {
                 "type": "boolean",
-                "description": "Whether this article should become a user-facing alert.",
+                "description": "Whether this event cluster should become a user-facing alert.",
             },
+            "should_notify": {"type": "boolean"},
             "event_type": {"type": "string"},
-            "summary": {"type": "string", "description": "Source-grounded concise article summary."},
+            "event_title": {"type": "string"},
+            "event_summary": {"type": "string"},
+            "current_status": {"type": "string"},
+            "summary": {"type": "string", "description": "Source-grounded concise event summary."},
             "why_it_matters": {"type": "string"},
+            "timeline": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "date",
+                        "time",
+                        "label",
+                        "description",
+                        "source_title",
+                        "source_url",
+                        "confidence",
+                    ],
+                    "properties": {
+                        "date": {"type": "string"},
+                        "time": {"type": ["string", "null"]},
+                        "label": {"type": "string"},
+                        "description": {"type": "string"},
+                        "source_title": {"type": "string"},
+                        "source_url": {"type": "string"},
+                        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                    },
+                },
+            },
+            "key_facts": {"type": "array", "items": {"type": "string"}},
+            "affected_entities": {"type": "array", "items": {"type": "string"}},
+            "source_links": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["title", "url", "publisher", "published_at"],
+                    "properties": {
+                        "title": {"type": "string"},
+                        "url": {"type": "string"},
+                        "publisher": {"type": "string"},
+                        "published_at": {"type": "string"},
+                    },
+                },
+            },
+            "relation_reason": {"type": "string"},
+            "uncertainties": {"type": "array", "items": {"type": "string"}},
+            "suggested_actions": {"type": "array", "items": {"type": "string"}},
             "market_watch_suggestions": {
                 "type": "array",
                 "items": {
@@ -535,6 +662,7 @@ def parse_llm_analysis(content: str | dict[str, Any]) -> LLMAnalysis:
 
 
 def analysis_from_dict(data: dict[str, Any]) -> LLMAnalysis:
+    data = _normalize_analysis_payload(data)
     required = [
         "relevance_score",
         "is_actionable_alert",
@@ -573,7 +701,122 @@ def analysis_from_dict(data: dict[str, Any]) -> LLMAnalysis:
         source_reliability=reliability,  # type: ignore[arg-type]
         recommended_user_action=action,  # type: ignore[arg-type]
         notification_title=str(data["notification_title"]),
+        event_title=str(data.get("event_title") or ""),
+        event_summary=str(data.get("event_summary") or data.get("summary") or ""),
+        current_status=str(data.get("current_status") or ""),
+        timeline=[_timeline_from_dict(item) for item in data.get("timeline") or []],
+        key_facts=_string_items(data.get("key_facts")),
+        affected_entities=_string_items(data.get("affected_entities")),
+        source_links=[_source_link_from_dict(item) for item in data.get("source_links") or []],
+        relation_reason=str(data.get("relation_reason") or ""),
+        uncertainties=_string_items(data.get("uncertainties")),
+        suggested_actions=_string_items(data.get("suggested_actions")),
+        grouped_article_count=max(1, int(data.get("grouped_article_count") or 1)),
     )
+
+
+def _normalize_analysis_payload(data: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(data)
+    if "is_actionable_alert" not in normalized and "should_notify" in normalized:
+        normalized["is_actionable_alert"] = bool(normalized["should_notify"])
+    if "should_notify" not in normalized and "is_actionable_alert" in normalized:
+        normalized["should_notify"] = bool(normalized["is_actionable_alert"])
+    if "summary" not in normalized and "event_summary" in normalized:
+        normalized["summary"] = normalized["event_summary"]
+    if "event_summary" not in normalized and "summary" in normalized:
+        normalized["event_summary"] = normalized["summary"]
+    if "event_title" not in normalized:
+        normalized["event_title"] = normalized.get("notification_title", "")
+    if "notification_title" not in normalized:
+        normalized["notification_title"] = normalized.get("event_title", "")
+    normalized.setdefault("current_status", "")
+    normalized.setdefault("timeline", [])
+    normalized.setdefault("key_facts", [])
+    normalized.setdefault("affected_entities", [])
+    normalized.setdefault("source_links", [])
+    normalized.setdefault("relation_reason", "")
+    normalized.setdefault("uncertainties", [])
+    normalized.setdefault("suggested_actions", [])
+    normalized.setdefault("grouped_article_count", 1)
+    return normalized
+
+
+def _with_event_defaults(
+    analysis: LLMAnalysis,
+    articles: list[Article],
+    relation_reason: str,
+    article_count: int,
+) -> LLMAnalysis:
+    if not analysis.event_title:
+        analysis.event_title = analysis.notification_title or (articles[0].title if articles else "")
+    if not analysis.event_summary:
+        analysis.event_summary = analysis.summary
+    if not analysis.source_links:
+        analysis.source_links = source_links_from_articles(articles)
+    if not analysis.timeline:
+        analysis.timeline = build_timeline(articles)
+    if not analysis.relation_reason:
+        analysis.relation_reason = relation_reason
+    analysis.grouped_article_count = max(article_count, len(articles), analysis.grouped_article_count)
+    return analysis
+
+
+def _timeline_from_dict(data: dict[str, Any]) -> TimelineItem:
+    return TimelineItem(
+        date=str(data.get("date") or "unknown"),
+        time=str(data["time"]) if data.get("time") not in (None, "") else None,
+        label=str(data.get("label") or ""),
+        description=str(data.get("description") or ""),
+        source_title=str(data.get("source_title") or ""),
+        source_url=str(data.get("source_url") or ""),
+        confidence=_float_between_zero_and_one(data.get("confidence")),
+    )
+
+
+def _source_link_from_dict(data: dict[str, Any]) -> SourceLink:
+    return SourceLink(
+        title=str(data.get("title") or ""),
+        url=str(data.get("url") or ""),
+        publisher=str(data.get("publisher") or ""),
+        published_at=str(data.get("published_at") or ""),
+    )
+
+
+def _string_items(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value or "").strip()
+    return [text] if text else []
+
+
+def _float_between_zero_and_one(value: object) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(1.0, number))
+
+
+def _article_payload(article: Article) -> dict[str, Any]:
+    return {
+        "title": article.title,
+        "snippet": article.snippet,
+        "source": article.source,
+        "published_at": article.published_at.isoformat() if article.published_at else None,
+        "url": article.url,
+        "language": article.language,
+        "translated_title": article.translated_title,
+        "translated_snippet": article.translated_snippet,
+        "short_summary": article.short_summary,
+        "source_reliability_score": article.reliability_score,
+        "source_ownership": article.ownership,
+        "source_bias_hint": article.bias_hint,
+        "source_role": article.source_role,
+        "source_tier": article.source_tier,
+        "ranking_score": article.ranking_score,
+        "matched_keywords": article.matched_keywords,
+        "bias_context": (article.raw or {}).get("bias_summary") if article.raw else None,
+    }
 
 
 def _suggestion_from_dict(data: dict[str, Any]) -> MarketWatchSuggestion:

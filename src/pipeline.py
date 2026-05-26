@@ -37,6 +37,7 @@ def new_pipeline_funnel(*, mode: str = "normal", test_mode: bool = False) -> dic
         "sources_skipped_backoff": 0,
         "articles_fetched": 0,
         "articles_after_deduplication": 0,
+        "articles_after_dedupe": 0,
         "articles_accepted_by_language": 0,
         "articles_rejected_by_language": 0,
         "articles_keyword_matched": 0,
@@ -44,6 +45,12 @@ def new_pipeline_funnel(*, mode: str = "normal", test_mode: bool = False) -> dic
         "articles_rejected_as_duplicates": 0,
         "candidates_ranked": 0,
         "candidates_sent_to_llm": 0,
+        "event_clusters": 0,
+        "event_clusters_produced": 0,
+        "clusters_sent_to_llm": 0,
+        "event_clusters_sent_to_llm": 0,
+        "event_clusters_rejected_by_llm": 0,
+        "event_alerts_generated": 0,
         "llm_accepted": 0,
         "llm_rejected": 0,
         "rejected_below_threshold": 0,
@@ -55,7 +62,8 @@ def new_pipeline_funnel(*, mode: str = "normal", test_mode: bool = False) -> dic
         "top_rejection_reasons": [],
         "top_rejected_candidate": None,
         "topic_threshold": None,
-        "concise_summary": "Fetched 0 -> Language 0 -> Keyword 0 -> New 0 -> LLM 0 -> Alerts 0",
+        "diagnostic_counts": {},
+        "concise_summary": "Fetched 0 -> Dedupe 0 -> Candidates 0 -> Events 0 -> LLM 0 -> Alerts 0",
         "zero_alert_explanation": "Cycle is still running.",
         "recommended_action": None,
     }
@@ -115,6 +123,7 @@ def finish(funnel: dict[str, Any] | None) -> dict[str, Any]:
             (funnel.get("rejection_reasons") or {}).items(), key=lambda item: item[1], reverse=True
         )
     ][:8]
+    funnel["diagnostic_counts"] = diagnostic_counts(funnel)
     funnel["concise_summary"] = concise_summary(funnel)
     funnel["zero_alert_explanation"] = zero_alert_explanation(funnel)
     funnel["recommended_action"] = recommended_action(funnel)
@@ -125,12 +134,44 @@ def finish(funnel: dict[str, Any] | None) -> dict[str, Any]:
 def concise_summary(funnel: dict[str, Any]) -> str:
     return (
         f"Fetched {int(funnel.get('articles_fetched') or 0)} -> "
-        f"Language {int(funnel.get('articles_accepted_by_language') or 0)} -> "
-        f"Keyword {int(funnel.get('articles_keyword_matched') or 0)} -> "
-        f"New {int(funnel.get('candidates_ranked') or 0)} -> "
-        f"LLM {int(funnel.get('candidates_sent_to_llm') or 0)} -> "
+        f"Dedupe {int(funnel.get('articles_after_deduplication') or 0)} -> "
+        f"Candidates {int(funnel.get('candidates_ranked') or 0)} -> "
+        f"Events {int(funnel.get('event_clusters_produced') or funnel.get('event_clusters') or 0)} -> "
+        f"LLM {int(funnel.get('event_clusters_sent_to_llm') or funnel.get('clusters_sent_to_llm') or funnel.get('candidates_sent_to_llm') or 0)} -> "
         f"Alerts {int(funnel.get('alerts_saved') or 0)}"
     )
+
+
+def diagnostic_counts(funnel: dict[str, Any]) -> dict[str, int]:
+    reasons = funnel.get("rejection_reasons") or {}
+    return {
+        "fetched": int(funnel.get("articles_fetched") or 0),
+        "articles_fetched": int(funnel.get("articles_fetched") or 0),
+        "articles_after_dedupe": int(
+            funnel.get("articles_after_dedupe") or funnel.get("articles_after_deduplication") or 0
+        ),
+        "accepted_language": int(funnel.get("articles_accepted_by_language") or 0),
+        "rejected_by_language": int(funnel.get("articles_rejected_by_language") or 0),
+        "matched_keyword": int(funnel.get("articles_keyword_matched") or 0),
+        "rejected_by_keyword": int(funnel.get("articles_rejected_by_keyword") or 0),
+        "rejected_as_duplicate": int(funnel.get("articles_rejected_as_duplicates") or 0),
+        "rejected_by_source_freshness": int(reasons.get("source_stale") or 0),
+        "ranked_candidates": int(funnel.get("candidates_ranked") or 0),
+        "candidates": int(funnel.get("candidates_ranked") or 0),
+        "event_clusters": int(funnel.get("event_clusters_produced") or funnel.get("event_clusters") or 0),
+        "sent_to_llm": int(funnel.get("candidates_sent_to_llm") or 0),
+        "clusters_sent_to_llm": int(
+            funnel.get("event_clusters_sent_to_llm") or funnel.get("clusters_sent_to_llm") or 0
+        ),
+        "rejected_by_llm": int(funnel.get("llm_rejected") or 0),
+        "event_clusters_rejected_by_llm": int(funnel.get("event_clusters_rejected_by_llm") or 0),
+        "rejected_below_threshold": int(funnel.get("rejected_below_threshold") or 0),
+        "alerts_saved": int(funnel.get("alerts_saved") or 0),
+        "event_alerts_generated": int(funnel.get("event_alerts_generated") or 0),
+        "notifications_succeeded": int(funnel.get("notifications_succeeded") or 0),
+        "notifications_sent": int(funnel.get("notifications_succeeded") or 0),
+        "sources_rate_limited": int(reasons.get("rate_limit") or 0),
+    }
 
 
 def zero_alert_explanation(funnel: dict[str, Any]) -> str:

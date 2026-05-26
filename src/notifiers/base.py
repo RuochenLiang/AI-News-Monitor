@@ -24,6 +24,8 @@ def format_alert_text(alert: Alert, language: str | None = None, mode: str | Non
     article = alert.article
     language = language or alert.output_language
     mode = mode or alert.mode
+    if _has_event_synthesis(alert):
+        return _format_event_alert(alert, language)
     if mode == "fast":
         return _format_fast_alert(alert, language)
     suggestions = _format_market_watch_suggestions(alert, language)
@@ -102,6 +104,82 @@ def _format_fast_alert(alert: Alert, language: str | None = None) -> str:
         f"{text('alert.why_selected', language)}: {reason}\n\n"
         f"{text('disclaimer', language)}"
     )
+
+
+def _format_event_alert(alert: Alert, language: str | None = None) -> str:
+    analysis = alert.analysis
+    article_count = analysis.grouped_article_count
+    timeline = _format_timeline(alert, language)
+    sources = _format_sources(alert, language)
+    key_facts = _format_list(analysis.key_facts, language)
+    uncertainty = _format_list(analysis.uncertainties, language)
+    suggested = _format_list(analysis.suggested_actions, language)
+    grouped_line = (
+        f"{text('alert.grouped_articles', language)}: {article_count}\n" if int(article_count or 0) > 1 else ""
+    )
+    current_status = analysis.current_status or text("alert.not_available", language)
+    summary = analysis.event_summary or analysis.summary
+    relation_reason = analysis.relation_reason or text("alert.not_available", language)
+    return (
+        f"{alert.title}\n\n"
+        f"{text('alert.topic', language)}: {alert.topic_name}\n"
+        f"{grouped_line}"
+        f"{text('alert.current_status', language)}:\n{current_status}\n\n"
+        f"{text('alert.summary', language)}:\n{summary}\n\n"
+        f"{text('alert.key_facts', language)}:\n{key_facts}\n\n"
+        f"{text('alert.timeline', language)}:\n{timeline}\n\n"
+        f"{text('alert.why_it_matters', language)}:\n{analysis.why_it_matters}\n\n"
+        f"{text('alert.sources', language)}:\n{sources}\n\n"
+        f"{text('alert.relation_reason', language)}:\n{relation_reason}\n\n"
+        f"{text('alert.uncertainty', language)}:\n{uncertainty}\n\n"
+        f"{text('alert.suggested_follow_up', language)}:\n{suggested}\n\n"
+        f"{text('disclaimer', language)}"
+    )
+
+
+def _has_event_synthesis(alert: Alert) -> bool:
+    analysis = alert.analysis
+    return bool(
+        alert.event_cluster
+        or analysis.event_title
+        or analysis.event_summary
+        or analysis.timeline
+        or analysis.source_links
+        or int(analysis.grouped_article_count or 1) > 1
+    )
+
+
+def _format_timeline(alert: Alert, language: str | None = None) -> str:
+    items = alert.analysis.timeline or (alert.event_cluster.timeline if alert.event_cluster else [])
+    if not items:
+        return f"- {text('alert.not_available', language)}"
+    lines = []
+    for item in items[:8]:
+        time = f" {item.time}" if item.time else ""
+        source = f" ({item.source_title})" if item.source_title else ""
+        lines.append(f"- {item.date}{time}: {item.description}{source}")
+    return "\n".join(lines)
+
+
+def _format_sources(alert: Alert, language: str | None = None) -> str:
+    links = alert.analysis.source_links
+    if not links and alert.event_cluster:
+        from src.event_synthesis import source_links_from_articles
+
+        links = source_links_from_articles(alert.event_cluster.articles)
+    if not links:
+        return f"1. {alert.article.source} — {alert.article.title}\n   {alert.article.url}"
+    return "\n".join(
+        f"{index}. {link.publisher or text('alert.source', language)} — {link.title}\n   {link.url}"
+        for index, link in enumerate(links, start=1)
+    )
+
+
+def _format_list(items: list[str], language: str | None = None) -> str:
+    cleaned = [item for item in items if item]
+    if not cleaned:
+        return f"- {text('alert.none', language)}"
+    return "\n".join(f"- {item}" for item in cleaned[:8])
 
 
 def _format_market_watch_suggestions(alert: Alert, language: str | None = None) -> str:

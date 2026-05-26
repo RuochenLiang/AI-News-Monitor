@@ -1,12 +1,12 @@
 # Chatbot Context for AI News Monitor
 
-Generated: 2026-05-19 after final private GitHub-upload cleanup verification
+Generated: 2026-05-26 after event-synthesis and timeline verification
 
 ## Read This First
 
 This file is the fastest entry point for another chatbot or coding agent. It summarizes the current project state, the release-readiness work already completed, the files to inspect first, and the residual manual checks before a public GitHub release.
 
-The project folder may not be a git repository in this local workspace. Treat these files as a public-upload candidate snapshot, then initialize or push to GitHub from a clean repository.
+The project folder is a git repository in this local workspace, and the working tree is intentionally dirty with event-synthesis plus earlier readiness/source changes. Review the diff before committing or pushing.
 
 ## Current State
 
@@ -25,6 +25,10 @@ The app is not a trading bot, investment adviser, broker integration, or stock r
 - Run Once exists for immediate real-source monitoring cycles.
 - E2E Test Mode exists and uses a clearly marked local `[E2E TEST]` fixture plus deterministic test LLM analysis.
 - Pipeline Funnel exists and records fetch, language, keyword, dedupe, ranking, LLM, alert, notification, top rejection reasons, zero-alert explanation, and recommended action.
+- Event clustering now groups related candidate articles before final LLM synthesis so one underlying event can produce one alert with event title, current status, timeline, source links, relation reason, uncertainty, and suggested follow-up.
+- Event clustering ignores generic broad topic terms such as `AI` as the sole grouping reason, so unrelated stories from the same feed stay separate.
+- Single-article alerts remain supported as single-source event clusters.
+- Event timelines are generated only from source metadata and provided article text; exact source-mentioned dates can become timeline items, unknown dates remain unknown, and publication-time-derived timeline items are labeled.
 - `/health` remains local server liveness only.
 - `/readiness` and `/api/readiness` summarize monitor, LLM, notifier, source coverage, critical gaps, last cycle status, and `can_send_alerts`.
 - Browser console primary cards are concise and overflow-safe; raw diagnostics and JSON are behind expandable details/copy controls.
@@ -76,8 +80,9 @@ Use the desktop app for credentials and setup. Use the browser console for live 
 - `NOTIFICATION_GUIDE.md`: notification setup, Gmail From Address requirement, diagnostics, fallback routing.
 - `docs/RELEASE_CHECKLIST.md`: public release checklist.
 - `docs/ARCHITECTURE.md`, `docs/INSTALL.md`, `docs/ROADMAP.md`: architecture, install, and future work.
-- `src/monitor.py`: monitor loop, E2E Test Mode, source fetching, LLM analysis, alert saving, notification sending.
-- `src/pipeline.py`: per-cycle funnel counts, rejection reasons, zero-alert explanations.
+- `src/monitor.py`: monitor loop, E2E Test Mode, source fetching, event clustering, LLM event analysis, alert saving, notification sending.
+- `src/event_clustering.py` and `src/event_synthesis.py`: deterministic event grouping, source-link payloads, timeline extraction, and event status serialization.
+- `src/pipeline.py`: per-cycle funnel counts, event cluster diagnostics, rejection reasons, zero-alert explanations.
 - `src/realtime.py`: browser console, `/health`, `/readiness`, `/api/control`, source diagnostics, HTML/CSS/JS.
 - `src/dependency_check.py`: runtime dependency check helper.
 - `src/source_reliability.py`: freshness, gaps, source packages, coverage, backoff helpers.
@@ -88,23 +93,15 @@ Use the desktop app for credentials and setup. Use the browser console for live 
 
 ## Latest Verification Snapshot
 
-Latest local verification after the final private GitHub-upload cleanup:
+Latest local verification after the event-synthesis pass:
 
-- `python -m ruff check .`: passed.
-- `python -m black --check .`: passed.
-- Targeted source/E2E/release-readiness tests: 34 passed, 3 skipped.
-- `python -m pytest`: 89 passed, 14 skipped.
-- `python -m pytest --cov=src --cov-report=term-missing -q`: 89 passed, 14 skipped, 54% coverage.
-- `python -m compileall src tests`: passed.
-- `config.example.yaml` parse: passed.
-- Runtime dependency check: passed.
-- Workflow YAML parse: passed.
-- macOS shell script syntax: passed.
-- PowerShell syntax: not run locally because `pwsh` is not installed on this Mac; validate through GitHub Actions.
-- Local Qt startup smoke with `QT_QPA_PLATFORM=offscreen`: passed.
-- Source-code Chinese scan: passed for source/test/script/config/workflow files.
-- Obvious secret scan: no real secrets found.
-- Runtime/private file scan: no `.env`, `config.yaml`, logs, data, database files, root prompt scratch files, or generated zip archives are intended for public upload.
+- `.venv/bin/python -m ruff check .`: passed.
+- `.venv/bin/python -m black --check .`: passed; `72 files would be left unchanged`.
+- `.venv/bin/python -m pytest -q`: `113 passed`, `14 skipped`.
+- `.venv/bin/python -m compileall src tests`: passed.
+- `.venv/bin/python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False); print('config ok')"`: `config ok`.
+- Isolated E2E Test Mode with all notifiers disabled produced one event-level alert: `Fetched 1 -> Dedupe 1 -> Candidates 1 -> Events 1 -> LLM 1 -> Alerts 1`.
+- Isolated real-source Run Once against TechCrunch AI RSS with all notifiers disabled produced event-cluster diagnostics: `Fetched 5 -> Dedupe 5 -> Candidates 5 -> Events 5 -> LLM 5 -> Alerts 0`. Alerts were `0` because no LLM API key was provided in the isolated temp runtime.
 
 Run the full checks again after any additional edits:
 
@@ -120,6 +117,8 @@ python -m compileall src tests
 ## Known Residual Risk
 
 - Real LLM API keys, Gmail accounts, SMTP provider policy, webhook tokens, chat IDs, and live public feed availability are not bundled or assumed. The user must configure and test them locally in the desktop app.
+- Real notification delivery was not exercised during the event-synthesis pass; isolated verification disabled all notifiers to avoid side effects.
+- The in-app Browser plugin control tool was unavailable, so rendered screenshot verification was not captured. Browser UI coverage comes from `_index_html` tests and serialized runtime/status output.
 - Windows packaging was not built locally on this Mac. Validate on a Windows runner or GitHub Actions before publishing Windows artifacts.
 - GitHub Actions files are present and checked statically, but they must pass in the actual GitHub repository after upload.
 - Public source URLs can change or rate-limit. Users should test sources through the desktop app and monitor source readiness.

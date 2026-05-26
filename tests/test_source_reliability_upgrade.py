@@ -108,7 +108,7 @@ def test_intelligence_gaps_and_coverage_quality_serialization():
     config = parse_config({"sources": {"enabled_packages": ["official-gov-starter"]}})
     now = utc_now()
     states = {
-        "Official RSS": {
+        item.name: {
             "enabled": True,
             "health": "ok",
             "last_fetch_time": now,
@@ -116,6 +116,8 @@ def test_intelligence_gaps_and_coverage_quality_serialization():
             "articles": 2,
             "freshness_state": "fresh",
         }
+        for item in config.sources.library
+        if "official-gov-starter" in item.packages and item.kind == "rss"
     }
 
     gaps = compute_intelligence_gaps(config, states)

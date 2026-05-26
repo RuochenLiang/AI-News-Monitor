@@ -115,8 +115,11 @@ def test_e2e_test_mode_produces_visible_alert_and_mock_notification(tmp_path):
     assert status.e2e_result["result"] == "success"
     assert status.e2e_result["articles_fetched"] == 1
     assert status.e2e_result["candidates_ranked"] == 1
+    assert status.e2e_result["event_clusters_produced"] == 1
     assert status.e2e_result["candidates_sent_to_llm"] == 1
+    assert status.e2e_result["event_clusters_sent_to_llm"] == 1
     assert status.e2e_result["alerts_saved"] == 1
+    assert status.e2e_result["event_alerts_generated"] == 1
     assert status.e2e_result["notifications_succeeded"] == 1
     assert len(notifier.sent) == 1
     assert "[E2E TEST]" in status.recent_alerts[0].title
@@ -127,6 +130,7 @@ def test_e2e_test_mode_produces_visible_alert_and_mock_notification(tmp_path):
 
     assert second_status.e2e_result["result"] == "success"
     assert second_status.e2e_result["candidates_ranked"] == 1
+    assert second_status.e2e_result["event_clusters_produced"] == 1
     assert second_status.e2e_result["notifications_succeeded"] == 1
     assert len(notifier.sent) == 2
 
@@ -154,9 +158,13 @@ def test_run_cycle_pipeline_funnel_counts_and_serializes_summary(tmp_path):
     assert funnel["articles_fetched"] == 1
     assert funnel["articles_accepted_by_language"] == 1
     assert funnel["articles_keyword_matched"] == 1
+    assert funnel["event_clusters_produced"] == 1
     assert funnel["alerts_saved"] == 1
     assert funnel["notifications_succeeded"] == 1
-    assert "Fetched 1 -> Language 1 -> Keyword 1 -> New 1 -> LLM 1 -> Alerts 1" in funnel["concise_summary"]
+    assert funnel["diagnostic_counts"]["fetched"] == 1
+    assert funnel["diagnostic_counts"]["event_clusters"] == 1
+    assert funnel["diagnostic_counts"]["sent_to_llm"] == 1
+    assert "Fetched 1 -> Dedupe 1 -> Candidates 1 -> Events 1 -> LLM 1 -> Alerts 1" in funnel["concise_summary"]
     assert "{" not in funnel["concise_summary"]
     assert serialized["pipeline_funnel"]["concise_summary"] == funnel["concise_summary"]
 
@@ -332,7 +340,8 @@ def test_finance_package_has_alternative_public_sources_and_warnings():
     assert finance["source_count"] > 1
     assert finance["failing_source_count"] == 0
     assert "last_package_test" in finance
-    assert "Yahoo Finance RSS" in finance["source_names"]
+    assert "MarketWatch Top Stories" in finance["source_names"]
+    assert "Yahoo Finance RSS" not in finance["source_names"]
     assert finance["warnings"] == ["This source package is enabled, but none of its sources are currently fresh."]
 
     empty_rows = source_package_status(parse_config({"sources": {"enabled_packages": []}}), {})
@@ -482,7 +491,9 @@ def test_browser_console_has_overflow_rules_and_no_raw_json_primary_event_render
     assert "Enable in desktop app" in html
     assert "JSON.stringify(event)" not in html
     assert "eventItems = eventItems.slice(0, 50)" in html
-    assert "<summary>Show details</summary>" in html
+    assert "debug-details" in html
+    assert "safe-code-block" in html
+    assert "show_details" in html
 
 
 def test_scheduler_control_callbacks_publish_events_without_running_cycle():

@@ -4,7 +4,7 @@ app:
   run_minimized_to_tray: false
 
 monitor:
-  default_interval_seconds: 120
+  default_interval_seconds: 600
   min_relevance_score: 80
   max_alerts_per_hour: 5
   deduplicate_hours: 72
@@ -126,7 +126,7 @@ sources:
   google_news_rss:
     enabled: true
   yahoo_finance_rss:
-    enabled: true
+    enabled: false
     # Yahoo 429 responses are treated as api_rate_limited and enter source backoff.
     # Keep Finance Starter enabled for additional public finance feeds.
   public_rss:
@@ -142,8 +142,13 @@ sources:
     - "global-news-starter"
     - "finance-starter"
     - "official-gov-starter"
+    - "china-taiwan-starter"
+    - "us-policy-starter"
     - "semiconductor-ai-starter"
+    - "company-ir-starter"
     - "taiwan-semiconductor-official"
+    - "geopolitics-starter"
+    - "ai-industry-starter"
   library:
     # The app also loads a built-in curated library with 50+ optional public RSS/Atom sources.
     # Keep only the sources you want enabled. Public feeds/APIs only; no paywalled or login-only scraping.

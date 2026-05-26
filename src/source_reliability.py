@@ -156,7 +156,7 @@ def source_metadata_index(config: AppConfig) -> dict[str, dict[str, Any]]:
         "Official RSS": {
             "category": "Official/Government",
             "packages": ["official-gov-starter"],
-            "language": config.app.output_language,
+            "language": "en",
             "source_type": "rss",
             "source_tier": 1,
             "source_role": "official",
@@ -183,8 +183,8 @@ def configured_source_records(
         ("GDELT", config.sources.gdelt.enabled),
         ("Google News RSS", config.sources.google_news_rss.enabled),
         ("Yahoo Finance RSS", config.sources.yahoo_finance_rss.enabled),
-        ("Global Public RSS", config.sources.public_rss.enabled),
-        ("Official RSS", config.sources.official_rss.enabled),
+        ("Global Public RSS", config.sources.public_rss.enabled and bool(config.sources.public_rss.urls)),
+        ("Official RSS", config.sources.official_rss.enabled and bool(config.sources.official_rss.urls)),
     ]
     metadata = source_metadata_index(config)
     for name, enabled in builtins:

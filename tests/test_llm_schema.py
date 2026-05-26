@@ -22,8 +22,36 @@ VALID_JSON = {
     "relevance_score": 91,
     "is_actionable_alert": True,
     "event_type": "policy",
+    "event_title": "Event Title",
+    "event_summary": "Event summary",
+    "current_status": "Developing",
     "summary": "Summary",
     "why_it_matters": "Why",
+    "timeline": [
+        {
+            "date": "2026-05-25",
+            "time": None,
+            "label": "Official source published",
+            "description": "Official notice published.",
+            "source_title": "Notice",
+            "source_url": "https://example.com/notice",
+            "confidence": 0.9,
+        }
+    ],
+    "key_facts": ["Fact"],
+    "affected_entities": ["TSMC"],
+    "source_links": [
+        {
+            "title": "Notice",
+            "url": "https://example.com/notice",
+            "publisher": "Example",
+            "published_at": "2026-05-25T00:00:00+00:00",
+        }
+    ],
+    "relation_reason": "Shared policy topic.",
+    "uncertainties": ["Uncertainty"],
+    "suggested_actions": ["Follow official source"],
+    "should_notify": True,
     "market_watch_suggestions": [
         {
             "ticker": "TSM",
@@ -70,6 +98,9 @@ def test_valid_llm_schema_parses():
     analysis = parse_llm_analysis(VALID_JSON)
     assert analysis.relevance_score == 91
     assert analysis.market_watch_suggestions[0].ticker == "TSM"
+    assert analysis.event_title == "Event Title"
+    assert analysis.timeline[0].date == "2026-05-25"
+    assert analysis.source_links[0].url == "https://example.com/notice"
 
 
 def test_llm_schema_rejects_bad_score():
@@ -82,6 +113,7 @@ def test_llm_schema_rejects_bad_score():
 def test_llm_schema_rejects_missing_keys():
     bad = dict(VALID_JSON)
     bad.pop("summary")
+    bad.pop("event_summary")
     with pytest.raises(ValueError, match="summary"):
         parse_llm_analysis(bad)
 
@@ -94,8 +126,10 @@ def test_llm_schema_rejects_invalid_enums():
 
 
 def test_llm_schema_extracts_json_from_fenced_text():
-    text = """```json
-{"relevance_score": 1, "is_actionable_alert": false, "event_type": "", "summary": "", "why_it_matters": "", "market_watch_suggestions": [], "bullish_path": "", "bearish_path": "", "risk_notes": "", "uncertainty_notes": "", "source_reliability": "low", "recommended_user_action": "ignore", "notification_title": ""}
+    payload = dict(VALID_JSON, relevance_score=1, is_actionable_alert=False, should_notify=False)
+    payload["recommended_user_action"] = "ignore"
+    text = f"""```json
+{json.dumps(payload)}
 ```"""
     assert parse_llm_analysis(text).recommended_user_action == "ignore"
 

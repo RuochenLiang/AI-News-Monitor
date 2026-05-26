@@ -147,31 +147,8 @@ SOURCE_PACKAGE_PRESETS = {
 SOURCE_PACKAGES = {key: str(value["name"]) for key, value in SOURCE_PACKAGE_PRESETS.items()}
 
 WEBSITE_ONLY_SOURCE_IDS = {
-    "amd-news",
-    "anthropic-news",
-    "ap-top-news",
-    "asml-news",
-    "bis-news",
-    "cnbc-finance",
-    "commerce-news",
-    "intel-news",
-    "meta-ai-blog",
-    "microsoft-blog",
-    "nasdaq-news",
-    "reuters-business",
-    "semi-org",
-    "semiconductor-today",
-    "state-dept-press",
-    "taiwan-cna",
-    "taiwan-mofa",
-    "taiwan-presidential-office",
-    "tesla-press",
-    "tsmc-news",
-    "us-treasury-press",
-    "ustr-press",
-    "white-house",
-    "xinhua-business",
-    "xinhua-world",
+    # Yahoo's public feed is useful as a manual website reference, but it frequently
+    # returns 429 to automated checks. Keep it out of default package activation.
     "yahoo-finance",
 }
 

@@ -4,19 +4,23 @@ AI News Monitor stores alerts locally first, then sends notifications through en
 
 ## Fast Alert vs Full Analysis
 
-`alerts.default_mode: "fast"` sends:
+`alerts.default_mode: "fast"` sends event-level alerts. If several related articles describe the same underlying event, they are grouped into one alert; if only one source is available, the alert remains a single-source event.
 
-- Title and translated title when available
-- Source and published time
-- Original URL
-- Short summary
+- Event title and current status
+- Event-level summary
+- Timeline built from source metadata and article text only
+- Key facts and why-it-matters
+- Source links for all important articles
+- Relation reason explaining why grouped articles are considered related
+- Grouped article count when more than one article is included
+- Uncertainty and suggested follow-up
 - Market-watch suggestions from the LLM response
 - Recommended user action such as watch only, research further, or urgent review
 - Match reason and matched keywords/entities
 - Source reliability/context
-- Cluster ID when available
-- Multi-source confirmation context when available
 - Why the item was selected
+
+Notifications are rendered as readable text for Email, Telegram, WeCom, WeChat/QQ relay, and webhook text payloads. They do not send raw LLM JSON or long code blocks. Generic webhook payloads also include structured event fields for integrations.
 
 `alerts.default_mode: "full_analysis"` also includes deeper LLM fields such as why-it-matters, bullish/bearish scenarios, risk notes, and uncertainty notes.
 
