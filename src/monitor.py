@@ -69,7 +69,7 @@ from src.sources.library import enabled_library_sources
 from src.sources.source_discovery import discover_sources_for_topic
 from src.storage import SQLiteStore
 from src.translation import enrich_article_language
-from src.utils.text_utils import keyword_matches
+from src.utils.text_utils import clean_text, keyword_matches
 from src.utils.time_utils import utc_now
 from src.verification.report_quality import build_verification_report, notification_gate_decision
 
@@ -527,8 +527,24 @@ class NewsMonitor:
         for cluster in event_clusters:
             article = cluster.primary_article
             self.status.queue_length = max(0, self.status.queue_length - 1)
+            apply_event_alert_dedupe = not _is_test_cluster(cluster)
             for cluster_article in cluster.articles:
                 self.store.upsert_article(cluster_article, topic.name)
+            if apply_event_alert_dedupe and self.store.seen_similar_alert_recently(
+                topic.name,
+                _cluster_dedupe_text(cluster),
+                config.monitor.deduplicate_hours,
+                threshold=0.54,
+            ):
+                increment(funnel, "articles_rejected_as_duplicates", cluster.article_count)
+                reject(funnel, "duplicate", cluster.article_count)
+                self._log(f"Similar event already summarized for topic '{topic.name}'; skipped '{cluster.title}'.")
+                for cluster_article in cluster.articles:
+                    self.store.mark_processed(cluster_article, topic.name)
+                    self.status.total_articles_processed += 1
+                self._emit_status()
+                continue
+            for cluster_article in cluster.articles:
                 enrich_article_language(
                     cluster_article,
                     target_language=config.enrichment.target_language or topic.output_language,
@@ -607,6 +623,16 @@ class NewsMonitor:
             else:
                 analysis.source_comparison = []
             _apply_topic_report_style(topic, analysis)
+            if apply_event_alert_dedupe and self.store.seen_similar_alert_recently(
+                topic.name,
+                _analysis_dedupe_text(cluster, analysis),
+                config.monitor.deduplicate_hours,
+                threshold=0.58,
+            ):
+                increment(funnel, "articles_rejected_as_duplicates", cluster.article_count)
+                reject(funnel, "duplicate", cluster.article_count)
+                self._log(f"LLM summary matched a recent alert for topic '{topic.name}'; duplicate skipped.")
+                continue
             if gate.status in {"unconfirmed", "developing"}:
                 analysis.current_status = f"{gate.user_label}: {analysis.current_status or gate.reason}"
                 analysis.uncertainty_notes = " ".join(
@@ -950,6 +976,36 @@ def _apply_topic_report_style(topic: TopicConfig, analysis: LLMAnalysis) -> None
         analysis.source_comparison = []
     if not topic.report_include_user_action:
         analysis.suggested_actions = []
+
+
+def _cluster_dedupe_text(cluster: EventCluster) -> str:
+    source_titles = " ".join(article.title for article in cluster.articles[:6])
+    snippets = " ".join(clean_text(article.snippet, max_length=180) for article in cluster.articles[:4])
+    entities = " ".join(cluster.entities[:12])
+    return clean_text(f"{cluster.title} {cluster.relation_reason} {entities} {source_titles} {snippets}")
+
+
+def _analysis_dedupe_text(cluster: EventCluster, analysis: LLMAnalysis) -> str:
+    source_titles = " ".join(article.title for article in cluster.articles[:4])
+    return clean_text(
+        " ".join(
+            item
+            for item in (
+                analysis.event_title,
+                analysis.notification_title,
+                analysis.event_summary,
+                analysis.summary,
+                analysis.current_status,
+                cluster.title,
+                source_titles,
+            )
+            if item
+        )
+    )
+
+
+def _is_test_cluster(cluster: EventCluster) -> bool:
+    return any(bool((article.raw or {}).get("test_mode")) for article in cluster.articles)
 
 
 def _runtime_source_metadata(source: NewsSource) -> dict[str, object] | None:

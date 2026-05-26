@@ -1,14 +1,45 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from src.models import Alert, Article
-from src.utils.text_utils import title_hash
+from src.utils.text_utils import clean_text, title_hash
 from src.utils.time_utils import iso_or_empty, parse_datetime, utc_now
 from src.utils.url_utils import normalize_url
+
+ALERT_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9&.+/-]{1,}|[\u4e00-\u9fff]{2,}")
+ALERT_STOPWORDS = {
+    "about",
+    "after",
+    "amid",
+    "and",
+    "are",
+    "for",
+    "from",
+    "has",
+    "have",
+    "into",
+    "its",
+    "new",
+    "not",
+    "of",
+    "on",
+    "over",
+    "said",
+    "says",
+    "the",
+    "this",
+    "that",
+    "their",
+    "they",
+    "to",
+    "update",
+    "with",
+}
 
 
 class SQLiteStore:
@@ -178,6 +209,35 @@ class SQLiteStore:
                     return True
         return False
 
+    def seen_similar_alert_recently(
+        self,
+        topic_name: str,
+        event_text: str,
+        dedupe_hours: int,
+        *,
+        threshold: float = 0.58,
+    ) -> bool:
+        tokens = _alert_tokens(event_text)
+        if not tokens:
+            return False
+        cutoff = utc_now() - timedelta(hours=dedupe_hours)
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT title, summary, sent_at FROM alerts
+                WHERE topic_name=?
+                ORDER BY sent_at DESC LIMIT 50
+                """,
+                (topic_name,),
+            ).fetchall()
+        for row in rows:
+            if not _after_cutoff(row["sent_at"], cutoff):
+                continue
+            previous_tokens = _alert_tokens(f"{row['title']} {row['summary']}")
+            if _token_similarity(tokens, previous_tokens) >= threshold:
+                return True
+        return False
+
     def save_alert(self, alert: Alert) -> int:
         with self.connect() as conn:
             cur = conn.execute(
@@ -316,6 +376,30 @@ class SQLiteStore:
 def _after_cutoff(value: str | None, cutoff: datetime) -> bool:
     parsed = parse_datetime(value)
     return bool(parsed and parsed >= cutoff)
+
+
+def _alert_tokens(text: str) -> set[str]:
+    cleaned = clean_text(text)
+    tokens = set()
+    for raw in ALERT_TOKEN_RE.findall(cleaned.replace("-", " ").replace("/", " ")):
+        token = raw.strip(" -_/.,:;()[]{}\"'").casefold()
+        if len(token) > 4 and token.endswith("s"):
+            token = token[:-1]
+        if len(token) < 2 or token in ALERT_STOPWORDS:
+            continue
+        tokens.add(token)
+    return tokens
+
+
+def _token_similarity(left: set[str], right: set[str]) -> float:
+    if not left or not right:
+        return 0.0
+    intersection = len(left & right)
+    jaccard = intersection / len(left | right)
+    smaller_size = min(len(left), len(right))
+    if smaller_size >= 4:
+        return max(jaccard, intersection / smaller_size)
+    return jaccard
 
 
 def _json_default(value):

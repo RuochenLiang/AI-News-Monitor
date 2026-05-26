@@ -262,10 +262,13 @@ def test_analysis_prompt_uses_compact_contract_and_token_budget():
     llm.analyze_article(topic, article)
 
     body = client.requests[0]["json"]
+    system_prompt = body["messages"][0]["content"]
     user_payload = json.loads(body["messages"][1]["content"])
     first_article = user_payload["articles"][0]
 
     assert body["max_tokens"] == 760
+    assert "synthesize the shared development once" in system_prompt
+    assert "avoid repeating near-identical facts source by source" in system_prompt
     assert "required_schema" not in user_payload
     assert user_payload["output_contract"]["required_fields"] == _analysis_response_schema()["required"]
     assert user_payload["article_count"] == 1

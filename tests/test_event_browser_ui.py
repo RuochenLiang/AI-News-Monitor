@@ -38,6 +38,21 @@ def test_browser_ui_uses_safe_responsive_grid_constraints():
     assert ".actions button,.actions a{width:100%}" in html
 
 
+def test_source_package_rows_use_dedicated_typography():
+    html = _index_html()
+
+    assert ".package-row{display:grid" in html
+    assert ".package-title{display:block;font:inherit;font-weight:650" in html
+    assert ".package-detail{font-size:13px;line-height:1.5" in html
+    assert ".package-warning{color:var(--amber)}" in html
+    assert ".row,.diagnostic-row,.package-row{grid-template-columns:1fr}" in html
+    assert 'class="package-row"' in html
+    assert 'class="package-title safe-long-text"' in html
+    assert 'class="package-detail safe-long-text"' in html
+    assert "statusBadge(pkg.enabled ? 'enabled' : 'disabled', lang)" in html
+    assert 'class="small-button package-action"' in html
+
+
 def test_browser_language_refresh_uses_live_config_and_retranslated_events(tmp_path):
     html = _index_html()
     config = AppConfig(app=AppSettings(output_language="en"))

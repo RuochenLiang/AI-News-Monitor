@@ -164,6 +164,8 @@ def _relation_score(left: _ArticleProfile, right: _ArticleProfile) -> float:
         score += 0.25
     if shared_topic_hits:
         score += 0.25
+        if _has_specific_topic_match(shared_topic_hits):
+            score += 0.12
     if shared_entities:
         score += 0.2
     if left.domain and left.domain == right.domain:
@@ -266,6 +268,16 @@ def _is_meaningful_relation_term(term: str) -> bool:
     if len(normalized) <= 2:
         return False
     return True
+
+
+def _has_specific_topic_match(terms: set[str]) -> bool:
+    for term in terms:
+        normalized = clean_text(term).casefold()
+        if len(TOKEN_RE.findall(normalized)) >= 2:
+            return True
+        if len(normalized) >= 8:
+            return True
+    return False
 
 
 def _time_proximity(left: Article, right: Article) -> bool:

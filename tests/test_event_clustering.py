@@ -45,6 +45,41 @@ def test_related_articles_are_grouped_into_one_event_cluster():
     assert all(article.event_cluster_id == clusters[0].cluster_id for article in articles)
 
 
+def test_specific_topic_phrase_groups_multi_source_reports_with_low_title_overlap():
+    now = datetime(2026, 5, 26, 10, tzinfo=UTC)
+    topic = TopicConfig(
+        "NVIDIA China licenses",
+        True,
+        "Track NVIDIA China license approvals.",
+        ["NVIDIA H20 China export license review"],
+    )
+    articles = [
+        _article(
+            "Commerce filing outlines accelerator shipment process",
+            "https://official.example/license",
+            published_at=now,
+            snippet=(
+                "NVIDIA H20 China export license review covers agencies, compliance dates, "
+                "customer screening, and shipment paperwork."
+            ),
+        ),
+        _article(
+            "Industry memo flags permit timing for datacenter buyers",
+            "https://industry.example/permits",
+            published_at=now + timedelta(hours=3),
+            snippet=(
+                "NVIDIA H20 China export license review is mentioned alongside vendor notices, "
+                "customs planning, and datacenter procurement."
+            ),
+        ),
+    ]
+
+    clusters = cluster_event_articles(articles, topic)
+
+    assert len(clusters) == 1
+    assert clusters[0].article_count == 2
+
+
 def test_unrelated_articles_are_not_grouped():
     now = datetime(2026, 5, 26, 10, tzinfo=UTC)
     topic = TopicConfig("Mixed", True, "Track relevant news.", ["NVIDIA export controls", "Taiwan election"])
