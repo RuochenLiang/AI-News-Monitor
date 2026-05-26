@@ -2,8 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from src.config import ConfigError, config_to_dict, load_config, parse_config, validate_config, validate_topic
-from src.models import TopicConfig
+from src.config import (
+    ConfigError,
+    config_to_dict,
+    load_config,
+    parse_config,
+    save_config,
+    validate_config,
+    validate_topic,
+)
+from src.models import AppConfig, TopicConfig
 from src.secrets import get_env_secret, mask_secret, sanitize_for_log
 
 CONFIG_TEXT = """
@@ -110,6 +118,32 @@ def test_next_version_topic_schema_parses_and_keeps_old_defaults():
     old_topic = config.topics[1]
     assert old_topic.source_mode == "manual"
     assert old_topic.social_enabled is False
+
+
+def test_topic_report_style_round_trips_top_level_fields(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    save_config(
+        AppConfig(
+            topics=[
+                TopicConfig(
+                    name="Policy",
+                    enabled=True,
+                    prompt="Track policy.",
+                    keywords=["policy"],
+                    report_include_timeline=False,
+                    report_include_source_comparison=False,
+                    report_include_user_action=False,
+                )
+            ]
+        ),
+        config_path,
+    )
+
+    topic = load_config(config_path, load_env=False).topics[0]
+
+    assert topic.report_include_timeline is False
+    assert topic.report_include_source_comparison is False
+    assert topic.report_include_user_action is False
 
 
 def test_secret_masking_and_log_sanitization(monkeypatch):

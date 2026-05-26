@@ -937,9 +937,13 @@ def _parse_topic(data: dict[str, Any]) -> TopicConfig:
         domains=[_normalize_domain(item) for item in data.get("domains", []) or []],
         preferred_regions=[str(item) for item in data.get("preferred_regions", []) or []],
         social_enabled=bool(data.get("social_enabled", False)),
-        report_include_timeline=bool(report_style.get("include_timeline", True)),
-        report_include_source_comparison=bool(report_style.get("include_source_comparison", True)),
-        report_include_user_action=bool(report_style.get("include_user_action", True)),
+        report_include_timeline=bool(report_style.get("include_timeline", data.get("report_include_timeline", True))),
+        report_include_source_comparison=bool(
+            report_style.get("include_source_comparison", data.get("report_include_source_comparison", True))
+        ),
+        report_include_user_action=bool(
+            report_style.get("include_user_action", data.get("report_include_user_action", True))
+        ),
     )
 
 
