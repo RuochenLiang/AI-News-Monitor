@@ -85,7 +85,13 @@ def _usable_qt_plugins_dir(plugins_dir: Path, pyside_version: str) -> Path:
     return plugins_dir
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "doctor":
+        from src.doctor import main as doctor_main
+
+        return doctor_main(argv[1:])
+
     try:
         assert_runtime_dependencies()
     except RuntimeError as exc:
@@ -106,7 +112,7 @@ def main() -> int:
 
     from src.ui.main_window import MainWindow
 
-    app = QApplication(sys.argv)
+    app = QApplication([sys.argv[0], *argv])
     app.setApplicationName("AI News Monitor")
     app.setQuitOnLastWindowClosed(False)
     window = MainWindow(runtime_dir)

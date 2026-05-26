@@ -100,12 +100,31 @@ local_server:
   # /health is liveness only. /readiness reports whether monitoring can send alerts.
   # The browser console exposes Run Once and E2E Test controls without storing secrets.
 
+ui:
+  debug_mode: false
+  # When false, the browser console hides raw JSON, raw prompts, stack traces,
+  # long source payloads, and internal scoring details unless explicitly expanded.
+
 llm:
-  preset: "recommended"
-  provider: "openai_compatible"
-  base_url: "https://api.openai.com/v1"
-  model: "gpt-4.1-mini"
-  api_key_env: "LLM_API_KEY"
+  provider: "openai"
+  fallback_providers: []
+  providers:
+    openai:
+      enabled: true
+      api_key_env: "OPENAI_API_KEY"
+      base_url: "https://api.openai.com/v1"
+      model: "gpt-4.1-mini"
+    deepseek:
+      enabled: false
+      api_key_env: "DEEPSEEK_API_KEY"
+      base_url: "https://api.deepseek.com"
+      model: "deepseek-v4-flash"
+      timeout_seconds: 60
+      max_retries: 3
+      retry_backoff_seconds: 2
+      thinking:
+        enabled: false
+        reasoning_effort: "medium"
   # Prefer API-enforced JSON Schema Structured Outputs when supported.
   # The app falls back to JSON object mode for compatible providers that do not support it.
   structured_outputs: true
@@ -118,10 +137,26 @@ llm:
   # max_tokens: 1024
   # timeout_seconds: 30
 
+social_sources:
+  x:
+    enabled: false
+    bearer_token_env: "X_BEARER_TOKEN"
+    max_posts_per_topic_per_run: 25
+    include_retweets: false
+    min_author_followers: null
+    trusted_accounts: []
+    blocked_accounts: []
+    search_recent_days_limit: 7
+    cost_guard:
+      enabled: true
+      daily_max_read_posts: 500
+      warn_when_reaching_percent: 80
+
 sources:
   gdelt:
-    enabled: true
-    # Diagnostics test both production-shaped topic queries and a simple smoke query.
+    enabled: false
+    # Enable for broad web/news discovery. It is disabled in the example config
+    # because live GDELT smoke checks can be slower or transiently unavailable.
     # If a query is too long, reduce topic keywords or use fewer OR-style phrases.
   google_news_rss:
     enabled: true
@@ -274,7 +309,25 @@ notifiers:
 topics:
   - name: "Trump Taiwan business cooperation"
     enabled: true
+    id: "trump_taiwan_business_cooperation"
     output_language: "en"
+    source_mode: "hybrid"
+    domains:
+      - "politics"
+      - "geopolitics"
+      - "public_policy"
+      - "semiconductor"
+    preferred_regions:
+      - "US"
+      - "Taiwan"
+      - "China"
+    social_enabled: false
+    notification_threshold:
+      min_confidence_score: 0.65
+    report_style:
+      include_timeline: true
+      include_source_comparison: true
+      include_user_action: true
     min_relevance_score: 80
     cooldown_minutes: 30
     prompt: >

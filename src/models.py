@@ -9,10 +9,93 @@ Confidence = Literal["low", "medium", "high"]
 UserAction = Literal["watch_only", "research_further", "urgent_review", "ignore"]
 Reliability = Literal["low", "medium", "high"]
 AlertMode = Literal["fast", "full_analysis"]
+SourceMode = Literal["manual", "auto", "hybrid"]
 SourceRole = Literal["official", "wire", "major_media", "niche_media", "company_ir", "aggregator", "blog", "custom"]
 PropagandaRisk = Literal["low", "medium", "high", "unknown"]
 FreshnessState = Literal["fresh", "stale", "very_stale", "no_data", "error", "disabled", "unknown"]
 CoverageQuality = Literal["high", "medium", "low", "critical"]
+VerificationStatus = Literal["verified", "developing", "unconfirmed", "low_confidence", "duplicate", "not_relevant"]
+
+
+@dataclass
+class SourceCandidate:
+    id: str
+    name: str
+    url: str
+    source_type: str
+    domain_tags: list[str] = field(default_factory=list)
+    country_or_region: str | None = None
+    language: str | None = None
+    credibility_hint: float | None = None
+    cost_hint: str | None = None
+    requires_api_key: bool = False
+    enabled_by_default: bool = False
+    notes: str | None = None
+
+
+@dataclass
+class SelectedSource:
+    candidate: SourceCandidate
+    reason: str
+    expected_value: str
+    risk: str | None
+    priority: int
+
+
+@dataclass
+class SocialPostItem:
+    platform: str
+    post_id: str
+    url: str
+    author_id: str | None
+    author_username: str | None
+    text: str
+    created_at: datetime
+    metrics: dict[str, Any] = field(default_factory=dict)
+    referenced_urls: list[str] = field(default_factory=list)
+    source_confidence_hint: float = 0.35
+
+
+@dataclass
+class SourceCredibility:
+    source_name: str
+    credibility_score: float
+    confidence_level: Confidence
+    reasons: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ExtractedClaim:
+    claim: str
+    claim_type: str = "unknown"
+    entities: list[str] = field(default_factory=list)
+    time: str | None = None
+    supporting_sources: list[str] = field(default_factory=list)
+    contradicting_sources: list[str] = field(default_factory=list)
+    confidence: float = 0.0
+
+
+@dataclass
+class VerificationReport:
+    status: VerificationStatus
+    confidence_score: float
+    source_credibility: list[SourceCredibility] = field(default_factory=list)
+    claims: list[ExtractedClaim] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
+    source_count: int = 0
+    independent_source_count: int = 0
+    social_only: bool = False
+
+
+@dataclass
+class NotificationGateDecision:
+    should_notify: bool
+    status: VerificationStatus
+    confidence_score: float
+    reason: str
+    user_label: str
 
 
 @dataclass
@@ -172,6 +255,12 @@ class LLMAnalysis:
     uncertainties: list[str] = field(default_factory=list)
     suggested_actions: list[str] = field(default_factory=list)
     grouped_article_count: int = 1
+    verification_status: VerificationStatus = "developing"
+    confidence_score: float = 0.0
+    source_comparison: list[dict[str, Any]] = field(default_factory=list)
+    report_include_timeline: bool = True
+    report_include_source_comparison: bool = True
+    report_include_user_action: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -208,6 +297,12 @@ class LLMAnalysis:
             "uncertainties": self.uncertainties,
             "suggested_actions": self.suggested_actions,
             "grouped_article_count": self.grouped_article_count,
+            "verification_status": self.verification_status,
+            "confidence_score": self.confidence_score,
+            "source_comparison": self.source_comparison,
+            "report_include_timeline": self.report_include_timeline,
+            "report_include_source_comparison": self.report_include_source_comparison,
+            "report_include_user_action": self.report_include_user_action,
             "should_notify": self.is_actionable_alert,
         }
 
@@ -259,6 +354,15 @@ class TopicConfig:
     cooldown_minutes: int | None = None
     official_rss_urls: list[str] = field(default_factory=list)
     broad_search: bool = False
+    id: str | None = None
+    source_mode: SourceMode = "manual"
+    domains: list[str] = field(default_factory=list)
+    preferred_regions: list[str] = field(default_factory=list)
+    social_enabled: bool = False
+    min_confidence_score: float = 0.0
+    report_include_timeline: bool = True
+    report_include_source_comparison: bool = True
+    report_include_user_action: bool = True
 
 
 @dataclass
@@ -282,15 +386,33 @@ class MonitorSettings:
 class LLMSettings:
     preset: str = "recommended"
     provider: str = "openai_compatible"
+    fallback_providers: list[str] = field(default_factory=list)
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4.1-mini"
     api_key_env: str = "LLM_API_KEY"
+    providers: dict[str, LLMProviderSettings] = field(default_factory=dict)
     structured_outputs: bool = True
     temperature: float = 0.7
     top_p: float = 1.0
     presence_penalty: float = 0.0
     max_tokens: int = 1024
     timeout_seconds: int = 30
+    max_retries: int = 3
+    retry_backoff_seconds: float = 2.0
+
+
+@dataclass
+class LLMProviderSettings:
+    enabled: bool = True
+    api_key_env: str = "LLM_API_KEY"
+    base_url: str = "https://api.openai.com/v1"
+    model: str = "gpt-4.1-mini"
+    timeout_seconds: int = 30
+    max_retries: int = 3
+    retry_backoff_seconds: float = 2.0
+    structured_outputs: bool = True
+    thinking_enabled: bool = False
+    reasoning_effort: str = "medium"
 
 
 @dataclass
@@ -400,6 +522,36 @@ class SourceSettings:
     enabled_packages: list[str] = field(default_factory=list)
     library: list[SourceLibraryItem] = field(default_factory=list)
     custom_sources: list[CustomNewsSourceConfig] = field(default_factory=list)
+
+
+@dataclass
+class XCostGuardSettings:
+    enabled: bool = True
+    daily_max_read_posts: int = 500
+    warn_when_reaching_percent: int = 80
+
+
+@dataclass
+class XSourceSettings:
+    enabled: bool = False
+    bearer_token_env: str = "X_BEARER_TOKEN"
+    max_posts_per_topic_per_run: int = 25
+    include_retweets: bool = False
+    min_author_followers: int | None = None
+    trusted_accounts: list[str] = field(default_factory=list)
+    blocked_accounts: list[str] = field(default_factory=list)
+    search_recent_days_limit: int = 7
+    cost_guard: XCostGuardSettings = field(default_factory=XCostGuardSettings)
+
+
+@dataclass
+class SocialSourcesSettings:
+    x: XSourceSettings = field(default_factory=XSourceSettings)
+
+
+@dataclass
+class UiSettings:
+    debug_mode: bool = False
 
 
 @dataclass
@@ -545,6 +697,7 @@ class AppConfig:
     quality: QualitySettings = field(default_factory=QualitySettings)
     notifications: NotificationRoutingSettings = field(default_factory=NotificationRoutingSettings)
     sources: SourceSettings = field(default_factory=SourceSettings)
+    social_sources: SocialSourcesSettings = field(default_factory=SocialSourcesSettings)
     source_health: SourceHealthSettings = field(default_factory=SourceHealthSettings)
     source_cache: SourceCacheSettings = field(default_factory=SourceCacheSettings)
     smart_polling: SmartPollingSettings = field(default_factory=SmartPollingSettings)
@@ -553,6 +706,7 @@ class AppConfig:
     enrichment: EnrichmentSettings = field(default_factory=EnrichmentSettings)
     bias: BiasSettings = field(default_factory=BiasSettings)
     local_server: LocalServerSettings = field(default_factory=LocalServerSettings)
+    ui: UiSettings = field(default_factory=UiSettings)
     notifiers: NotifierSettings = field(default_factory=NotifierSettings)
     topics: list[TopicConfig] = field(default_factory=list)
 
@@ -579,6 +733,7 @@ class RuntimeStatus:
     source_summary: dict[str, Any] = field(default_factory=dict)
     source_cache_summary: dict[str, Any] = field(default_factory=dict)
     source_backoff_summary: dict[str, Any] = field(default_factory=dict)
+    source_selection_summary: list[dict[str, Any]] = field(default_factory=list)
     source_tier_distribution: dict[str, int] = field(default_factory=dict)
     top_failing_sources: list[dict[str, Any]] = field(default_factory=list)
     intelligence_gaps: dict[str, Any] = field(default_factory=dict)
@@ -587,6 +742,7 @@ class RuntimeStatus:
     e2e_result: dict[str, Any] = field(default_factory=dict)
     llm_health: str = "unknown"
     local_server_url: str | None = None
+    ui_debug_mode: bool = False
     output_language: str = "zh-CN"
     alert_mode: AlertMode = "fast"
     last_service_check_time: datetime | None = None

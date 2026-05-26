@@ -86,12 +86,148 @@ def test_settings_page_static_text_keys_exist():
     assert result.returncode == 0, result.stderr + result.stdout
 
 
+def test_settings_page_saves_deepseek_and_x_configuration(tmp_path):
+    script = textwrap.dedent(f"""
+        import os
+        from pathlib import Path
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+        from PySide6.QtWidgets import QApplication
+
+        from src.config import load_config, save_config
+        from src.models import AppConfig, EmailSettings, NotifierSettings
+        from src.secrets import read_env_values
+        from src.ui.settings_page import SettingsPage
+
+        runtime_dir = Path({str(tmp_path)!r})
+        app = QApplication.instance() or QApplication([])
+        config_path = runtime_dir / "config.yaml"
+        save_config(AppConfig(notifiers=NotifierSettings(email=EmailSettings(enabled=False))), config_path)
+        (runtime_dir / ".env").write_text("", encoding="utf-8")
+
+        page = SettingsPage(config_path, runtime_dir)
+        page.llm_preset.setCurrentText("Custom")
+        page.llm_provider.setCurrentText("deepseek")
+        page.llm_fallback_providers.setText("openai")
+        page.llm_base_url.setText("https://api.openai.com/v1")
+        page.llm_model.setText("gpt-4.1-mini")
+        page.llm_api_key.setText("sk-openai")
+        page.llm_max_retries.setValue(4)
+        page.llm_retry_backoff.setValue(1.25)
+        page.deepseek_enabled.setChecked(True)
+        page.deepseek_model.setText("deepseek-v4-pro")
+        page.deepseek_api_key.setText("sk-deepseek")
+        page.deepseek_timeout.setValue(90)
+        page.deepseek_max_retries.setValue(5)
+        page.deepseek_retry_backoff.setValue(3.5)
+        page.x_enabled.setChecked(True)
+        page.x_bearer_token.setText("x-token")
+        page.x_max_posts.setValue(12)
+        page.x_include_retweets.setChecked(True)
+        page.x_min_author_followers.setValue(1000)
+        page.x_trusted_accounts.setPlainText("XDevelopers\\nOpenAI")
+        page.x_blocked_accounts.setPlainText("spam")
+        page.x_recent_days.setValue(3)
+        page.x_cost_guard_enabled.setChecked(True)
+        page.x_daily_max_read_posts.setValue(250)
+        page.x_warn_percent.setValue(75)
+        page.ui_debug_mode.setChecked(True)
+
+        assert app is not None
+        assert page.save_settings(True) is True
+
+        saved = load_config(config_path)
+        env = read_env_values(runtime_dir / ".env")
+        assert saved.llm.provider == "deepseek"
+        assert saved.llm.fallback_providers == ["openai"]
+        assert saved.llm.model == "deepseek-v4-pro"
+        assert saved.llm.base_url == "https://api.deepseek.com"
+        assert saved.llm.providers["deepseek"].enabled is True
+        assert saved.llm.providers["deepseek"].timeout_seconds == 90
+        assert saved.llm.providers["deepseek"].max_retries == 5
+        assert saved.llm.providers["deepseek"].retry_backoff_seconds == 3.5
+        assert saved.social_sources.x.enabled is True
+        assert saved.social_sources.x.max_posts_per_topic_per_run == 12
+        assert saved.social_sources.x.include_retweets is True
+        assert saved.social_sources.x.min_author_followers == 1000
+        assert saved.social_sources.x.trusted_accounts == ["XDevelopers", "OpenAI"]
+        assert saved.social_sources.x.blocked_accounts == ["spam"]
+        assert saved.social_sources.x.search_recent_days_limit == 3
+        assert saved.social_sources.x.cost_guard.daily_max_read_posts == 250
+        assert saved.social_sources.x.cost_guard.warn_when_reaching_percent == 75
+        assert saved.ui.debug_mode is True
+        assert env["DEEPSEEK_API_KEY"] == "sk-deepseek"
+        assert env["X_BEARER_TOKEN"] == "x-token"
+        """)
+    result = _run_qt_script(script)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_topics_page_exposes_next_version_topic_schema(tmp_path):
+    script = textwrap.dedent(f"""
+        import os
+        from pathlib import Path
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+        from PySide6.QtWidgets import QApplication
+
+        from src.config import save_config
+        from src.models import AppConfig, TopicConfig
+        from src.ui.topics_page import TopicsPage
+
+        runtime_dir = Path({str(tmp_path)!r})
+        app = QApplication.instance() or QApplication([])
+        config_path = runtime_dir / "config.yaml"
+        save_config(
+            AppConfig(
+                topics=[
+                    TopicConfig(
+                        name="Policy",
+                        enabled=True,
+                        prompt="Track policy.",
+                        keywords=["policy"],
+                        id="policy",
+                        source_mode="hybrid",
+                        domains=["politics", "public_policy"],
+                        preferred_regions=["US", "EU"],
+                        social_enabled=True,
+                        min_confidence_score=0.7,
+                        report_include_timeline=True,
+                        report_include_source_comparison=True,
+                        report_include_user_action=False,
+                    )
+                ]
+            ),
+            config_path,
+        )
+
+        page = TopicsPage(config_path)
+        topic = page._topic_from_form()
+
+        assert app is not None
+        assert page.topic_tabs.count() == 3
+        assert page.source_mode.currentText() == "hybrid"
+        assert topic.id == "policy"
+        assert topic.domains == ["politics", "public_policy"]
+        assert topic.preferred_regions == ["US", "EU"]
+        assert topic.social_enabled is True
+        assert topic.min_confidence_score == 0.7
+        assert topic.report_include_user_action is False
+        """)
+    result = _run_qt_script(script)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
 def test_message_box_style_uses_high_contrast_colors():
     script = textwrap.dedent("""
         from src.ui.widgets import MESSAGE_BOX_STYLE
 
         assert "background-color: #ffffff" in MESSAGE_BOX_STYLE
         assert "color: #172033" in MESSAGE_BOX_STYLE
+        assert "min-width: 560px" in MESSAGE_BOX_STYLE
+        assert "min-height: 240px" in MESSAGE_BOX_STYLE
         assert "QMessageBox QLabel" in MESSAGE_BOX_STYLE
         """)
     result = _run_qt_script(script)

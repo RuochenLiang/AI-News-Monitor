@@ -11,6 +11,8 @@ Use this before publishing a public GitHub release.
 - Run `python -m pytest --cov=src --cov-report=term-missing -q`.
 - Run `python -m compileall src tests`.
 - Run `python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False)"`.
+- Run `python -m ai_news_monitor doctor --check-llm --config config.example.yaml --json` and confirm missing local secrets are reported without exposing values.
+- Run `python -m ai_news_monitor doctor --check-sources --config config.example.yaml --json` with network access only when you are ready to exercise public feeds.
 - Run the dependency check with `python -c "from src.dependency_check import assert_runtime_dependencies; assert_runtime_dependencies()"`.
 - Confirm source code is English-only except allowed locale/docs resources.
 - Confirm no `.env`, `config.yaml`, `user_config.yaml`, logs, data, databases, caches, or secrets are in the release source archive.
@@ -69,7 +71,16 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 - Paused/running/stopped/error state is prominent, including pause reason and next scheduled cycle when available.
 - Last-known-good cached fallback is clearly marked as cached/degraded and cached alerting is disabled by default.
 - Multi-source event synthesis appears in alert text when multiple independent sources report the same event, including relation reason, timeline, source links, uncertainty, and suggested follow-up.
+- Prompt 15 report cards show verification status, relevance score, confidence score, source comparison, timeline, source links, notification status where available, and raw diagnostic details only behind expansion.
+- X.com recent-search ingestion is disabled by default and only queried when global X config and the topic's social mode/source mode allow it.
+- X.com daily read-post guard is enforced by the adapter for the running app session.
+- DeepSeek diagnostics use OpenAI-compatible provider checks and do not rely on deprecated model names.
+- DeepSeek/OpenAI-compatible requests honor configured retries and retry backoff before provider fallback is attempted.
 - Desktop app can run Test LLM, source tests, and per-channel notification tests without real bundled credentials.
+- Desktop Settings page exposes OpenAI/DeepSeek primary/fallback routing, local provider keys, DeepSeek retry fields, and X.com recent-search cost controls.
+- Desktop Topics page exposes source mode, domains, preferred regions, social enablement, confidence threshold, and report-style flags.
+- Desktop Topics page can preview manual and auto-selected sources with reason, expected value, risk, and priority before a monitoring cycle runs.
+- Per-topic report-style flags are honored by LLM prompt preferences and final alert cleanup for timeline, source comparison, and suggested user action sections.
 - Browser console remains read-only for configuration, shows concise operator summaries first, keeps raw diagnostics behind details, and wraps long URLs/errors without layout overflow.
 - SSE/browser console failures are visible and the local server remains bound to localhost unless LAN access is explicitly enabled.
 
@@ -78,7 +89,8 @@ Use a private repo first. Do not make repo public until CI and build artifacts h
 - `README.md` and `README.zh-CN.md` explain local run steps, Run Once, E2E Test Mode, diagnostics, event clustering, event timelines, pipeline funnel, 0-alert interpretation, readiness vs health, LLM setup, Gmail app passwords, sender vs receiver fields, source testing, and notification testing.
 - `NOTIFICATION_GUIDE.md` explains event alert rendering, timelines, source links, Gmail app password setup, SMTP categories, webhook categories, fallback routing, From Address readiness, and pipeline notification failure reasons.
 - `SOURCE_GUIDE.md` explains public-source policy, source testing, bulk source diagnostics, GDELT/Yahoo common failures, source package warnings, and website-only candidates.
-- `SOURCE_GUIDE.md` explains source tiers, roles, state-affiliation/propaganda-risk context, freshness states, intelligence gaps, source cache, smart polling/backoff, source presets, coverage quality, event clustering, timeline date safety, and multi-source confirmation.
+- `SOURCE_GUIDE.md` explains source tiers, roles, state-affiliation/propaganda-risk context, freshness states, intelligence gaps, source cache, smart polling/backoff, source presets, manual/auto/hybrid source modes, coverage quality, event clustering, timeline date safety, and multi-source confirmation.
+- `docs/LLM_PROVIDERS.md`, `docs/SOCIAL_SOURCES.md`, and `docs/VERIFICATION_PIPELINE.md` explain OpenAI/DeepSeek routing, X.com cost/confirmation caveats, and verification gate behavior.
 - `config.example.yaml` and `.env.example` contain placeholders only.
 
 ## Packaging

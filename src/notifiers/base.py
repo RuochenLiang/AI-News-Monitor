@@ -109,17 +109,25 @@ def _format_fast_alert(alert: Alert, language: str | None = None) -> str:
 def _format_event_alert(alert: Alert, language: str | None = None) -> str:
     analysis = alert.analysis
     article_count = analysis.grouped_article_count
-    timeline = _format_timeline(alert, language)
     sources = _format_sources(alert, language)
     key_facts = _format_list(analysis.key_facts, language)
     uncertainty = _format_list(analysis.uncertainties, language)
-    suggested = _format_list(analysis.suggested_actions, language)
     grouped_line = (
         f"{text('alert.grouped_articles', language)}: {article_count}\n" if int(article_count or 0) > 1 else ""
     )
     current_status = analysis.current_status or text("alert.not_available", language)
     summary = analysis.event_summary or analysis.summary
     relation_reason = analysis.relation_reason or text("alert.not_available", language)
+    timeline_section = (
+        f"{text('alert.timeline', language)}:\n{_format_timeline(alert, language)}\n\n"
+        if analysis.report_include_timeline
+        else ""
+    )
+    suggested_section = (
+        f"{text('alert.suggested_follow_up', language)}:\n{_format_list(analysis.suggested_actions, language)}\n\n"
+        if analysis.report_include_user_action
+        else ""
+    )
     return (
         f"{alert.title}\n\n"
         f"{text('alert.topic', language)}: {alert.topic_name}\n"
@@ -127,12 +135,12 @@ def _format_event_alert(alert: Alert, language: str | None = None) -> str:
         f"{text('alert.current_status', language)}:\n{current_status}\n\n"
         f"{text('alert.summary', language)}:\n{summary}\n\n"
         f"{text('alert.key_facts', language)}:\n{key_facts}\n\n"
-        f"{text('alert.timeline', language)}:\n{timeline}\n\n"
+        f"{timeline_section}"
         f"{text('alert.why_it_matters', language)}:\n{analysis.why_it_matters}\n\n"
         f"{text('alert.sources', language)}:\n{sources}\n\n"
         f"{text('alert.relation_reason', language)}:\n{relation_reason}\n\n"
         f"{text('alert.uncertainty', language)}:\n{uncertainty}\n\n"
-        f"{text('alert.suggested_follow_up', language)}:\n{suggested}\n\n"
+        f"{suggested_section}"
         f"{text('disclaimer', language)}"
     )
 
@@ -150,6 +158,8 @@ def _has_event_synthesis(alert: Alert) -> bool:
 
 
 def _format_timeline(alert: Alert, language: str | None = None) -> str:
+    if not alert.analysis.report_include_timeline:
+        return f"- {text('alert.not_available', language)}"
     items = alert.analysis.timeline or (alert.event_cluster.timeline if alert.event_cluster else [])
     if not items:
         return f"- {text('alert.not_available', language)}"

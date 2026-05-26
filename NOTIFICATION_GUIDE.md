@@ -1,6 +1,28 @@
 # Notification Guide
 
+Notifications now pass through a verification gate before delivery. Low-confidence events below the topic confidence threshold are stored or skipped instead of being pushed. Social-only reports are labelled as unconfirmed social-media signals.
+
+Report cards and notifications use these verification states:
+
+- `verified`: enough source credibility and confidence for a normal alert.
+- `developing`: relevant and worth monitoring, but still incomplete or early.
+- `unconfirmed`: usually a social-only signal; treat it as a lead, not a verified fact.
+- `low_confidence`: below the topic confidence threshold and not pushed.
+
+Tune over-notification with `min_relevance_score`, `notification_threshold.min_confidence_score`, cooldowns, and source mode. For politics, finance, health, and breaking news, use higher confidence thresholds and prefer `hybrid` with official or primary sources enabled.
+
 AI News Monitor stores alerts locally first, then sends notifications through enabled channels. Fast Alert mode is the default for all channels.
+
+Per-topic `report_style` controls the shape of event reports:
+
+```yaml
+report_style:
+  include_timeline: true
+  include_source_comparison: true
+  include_user_action: true
+```
+
+When a flag is false, the LLM prompt receives that preference and the final alert payload is cleaned before notification. Timeline and suggested-follow-up sections are hidden in notification text when disabled; source-comparison rows are omitted from browser alert cards and structured payloads when disabled.
 
 ## Fast Alert vs Full Analysis
 

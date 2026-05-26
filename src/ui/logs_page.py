@@ -20,8 +20,11 @@ class LogsPage(QWidget):
         self.open_button = QPushButton(text("open_logs", self.language))
         self.text = QTextEdit()
         self.text.setReadOnly(True)
+        self.text.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.text.setMinimumHeight(520)
 
         layout = QVBoxLayout(self)
+        layout.setSpacing(12)
         self.title_label = QLabel(text("logs_title", self.language))
         self.title_label.setObjectName("PageTitle")
         layout.addWidget(self.title_label)

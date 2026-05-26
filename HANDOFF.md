@@ -2,7 +2,29 @@
 
 ## Current Goal
 
-Implement the event-level news synthesis and timeline addendum archived at `docs/dev-history/prompts/14-event-synthesis-timeline.md`: group related articles into event clusters, synthesize one event alert with timeline/source links/relation reason, keep single-article compatibility, update browser UI/diagnostics/i18n/docs, and verify the full local test suite.
+Treat `docs/dev-history/prompts/15-intelligent-source-discovery-verification-social-deepseek.md` as the current next-version prompt. It asks for intelligent source discovery with manual/auto/hybrid modes, source credibility and claim verification, multi-source event reports, optional X.com signal ingestion, DeepSeek provider support, generalized topics, concise browser report cards, compatibility migration, tests, and docs.
+
+## Prompt 15 Foundation Pass
+
+- Archived the root-level next-version prompt as `docs/dev-history/prompts/15-intelligent-source-discovery-verification-social-deepseek.md` and updated the prompt archive indexes/readiness test.
+- Added backward-compatible topic fields for `source_mode`, domains, preferred regions, social enablement, confidence thresholds, `user_prompt`, nested `notification_threshold`, and report-style flags.
+- Added source discovery/ranking modules that classify topics and select ranked source candidates from the existing curated source library for `auto` and `hybrid` modes.
+- Added the `src/aggregation/` namespace for event clustering, timeline payloads, and article dedupe while preserving compatibility with the earlier root modules.
+- Added source candidate, selected source, social post, source credibility, claim, verification report, and notification gate data models.
+- Added a verification package for source credibility scoring, lightweight claim extraction/corroboration, report confidence scoring, and notification gating.
+- Added OpenAI/DeepSeek provider config parsing and an LLM router that can fall back across OpenAI-compatible providers while preserving old `openai_compatible` configs. Configured retry backoff is now passed to OpenAI-compatible HTTP retries.
+- Added disabled-by-default X.com config plus query builder, normalizer, and API client scaffolding with bearer-token readiness checks.
+- Added X.com as an optional `NewsSource` adapter that converts recent-search posts to low-confidence social `Article`s only when global X config is enabled and the topic uses `auto`/`hybrid` source mode with social enabled. Auto source selection now keeps X only for eligible social topics, and the adapter enforces the in-session daily read-post guard.
+- Integrated source discovery into the monitor loop for `auto` and `hybrid` topics, and integrated the verification gate before alert notification.
+- Extended the desktop Topics page so topic ID, source mode, domains, preferred regions, social enablement, confidence threshold, and report-style flags can be edited without hand-writing YAML.
+- Added a desktop topic source-selection preview so manual and auto-selected sources can be reviewed with reason, expected value, risk, and priority before a monitor run.
+- Extended the desktop Settings page so OpenAI/DeepSeek primary/fallback routing, provider keys, DeepSeek retry fields, and X.com recent-search/cost-guard settings can be edited without hand-writing YAML.
+- Wired per-topic report-style flags into LLM prompt preferences and final alert cleanup so timeline, source comparison, and suggested-action sections can be hidden.
+- Added verification status, relevance score, confidence score, and source comparison fields to serialized browser report cards.
+- Added contradiction surfacing in claim corroboration and verification report risks.
+- Added `python -m ai_news_monitor doctor --check-llm/--check-sources` for non-UI diagnostics.
+- Added docs for LLM providers, social sources, and the verification pipeline.
+- Added focused tests for source discovery/ranking, claim corroboration, notification gating, DeepSeek fallback, X config/query behavior, report generation inputs, UI raw-output defaults, and prompt archive readiness.
 
 ## Event Synthesis Pass
 
@@ -94,13 +116,15 @@ python -c "from pathlib import Path; from src.config import load_config; load_co
 
 ## Latest Known Test Results
 
-Final local verification on 2026-05-26:
+Latest local verification on 2026-05-26 after the prompt 15 foundation pass:
 
-- Ruff: `.venv/bin/python -m ruff check .` passed.
-- Black check: `.venv/bin/python -m black --check .` passed; `72 files would be left unchanged`.
-- Full pytest: `.venv/bin/python -m pytest -q` passed; `113 passed`, `14 skipped`.
-- Compileall: `.venv/bin/python -m compileall src tests` passed.
-- `config.example.yaml` parse: `.venv/bin/python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False); print('config ok')"` printed `config ok`.
+- Ruff: `python -m ruff check .` passed.
+- Black check: `python -m black --check .` passed; `102 files would be left unchanged`.
+- Full pytest: `python -m pytest -q` passed; `140 passed`, `14 skipped`.
+- Compileall: `python -m compileall ai_news_monitor src tests` passed.
+- `config.example.yaml` parse: `python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False); print('config ok')"` printed `config ok`.
+- `git diff --check` passed.
+- `python -m ai_news_monitor doctor --check-llm --config config.example.yaml --json` ran successfully as a command path and returned the expected missing `OPENAI_API_KEY` diagnostic for the placeholder example config.
 - Isolated E2E Test Mode with all notifiers disabled produced one event-level alert: `Fetched 1 -> Dedupe 1 -> Candidates 1 -> Events 1 -> LLM 1 -> Alerts 1`.
 - Isolated real-source Run Once against TechCrunch AI RSS with all notifiers disabled produced event-cluster diagnostics: `Fetched 5 -> Dedupe 5 -> Candidates 5 -> Events 5 -> LLM 5 -> Alerts 0`. Alerts were `0` because the temp config intentionally had no LLM API key; this verified event cluster diagnostics without sending notifications.
 

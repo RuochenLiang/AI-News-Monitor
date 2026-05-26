@@ -150,6 +150,30 @@ WEBSITE_ONLY_SOURCE_IDS = {
     # Yahoo's public feed is useful as a manual website reference, but it frequently
     # returns 429 to automated checks. Keep it out of default package activation.
     "yahoo-finance",
+    # These publishers either block automated RSS fetches, have removed the listed
+    # feed, or expose only website pages reliably. Keep them as source-discovery
+    # references without enabling broken default RSS fetches.
+    "amd-news",
+    "anthropic-news",
+    "ap-top-news",
+    "asml-news",
+    "cnbc-finance",
+    "commerce-news",
+    "intel-news",
+    "meta-ai-blog",
+    "microsoft-blog",
+    "nasdaq-news",
+    "reuters-business",
+    "semi-org",
+    "semiconductor-today",
+    "tesla-press",
+    "tsmc-news",
+    "ustr-press",
+    "us-treasury-press",
+    "white-house",
+    "xinhua-business",
+    "xinhua-world",
+    "taiwan-cna",
 }
 
 

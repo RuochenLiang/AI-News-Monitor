@@ -9,19 +9,21 @@ from pathlib import Path
 
 import httpx
 
+from src.aggregation.deduplication import dedupe_articles
+from src.aggregation.event_clusterer import cluster_event_articles
+from src.aggregation.topic_timeline import cluster_status_payload, source_links_from_articles
 from src.bias import annotate_bias_context, cluster_articles
 from src.config import load_config
-from src.dedupe import dedupe_articles
 from src.diagnostics import classify_feed_http_error
-from src.event_clustering import cluster_event_articles
-from src.event_synthesis import cluster_status_payload, source_links_from_articles
 from src.language import detect_supported_language, normalize_language
+from src.llm import build_llm_client
 from src.llm_client import LLMClient
 from src.logging_setup import alert_logger, cleanup_old_logs
 from src.models import (
     Alert,
     AppConfig,
     Article,
+    CustomNewsSourceConfig,
     EventCluster,
     LLMAnalysis,
     MarketWatchSuggestion,
@@ -60,13 +62,16 @@ from src.sources import (
     NewsSource,
     OfficialRssSource,
     PublicRssSource,
+    XRecentSearchSource,
     YahooFinanceRssSource,
 )
 from src.sources.library import enabled_library_sources
+from src.sources.source_discovery import discover_sources_for_topic
 from src.storage import SQLiteStore
 from src.translation import enrich_article_language
 from src.utils.text_utils import keyword_matches
 from src.utils.time_utils import utc_now
+from src.verification.report_quality import build_verification_report, notification_gate_decision
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +97,7 @@ class NewsMonitor:
         self.runtime_dir = runtime_dir
         self.store = store or SQLiteStore(runtime_dir / "data" / "monitor.sqlite")
         self.source_factory = source_factory or build_sources
-        self.llm_factory = llm_factory or (lambda config: LLMClient(config.llm))
+        self.llm_factory = llm_factory or build_llm_client
         self.notifier_factory = notifier_factory or build_notifiers
         self.status_callback = status_callback
         self.log_callback = log_callback
@@ -160,12 +165,14 @@ class NewsMonitor:
         self.status.active_topics_count = len(active_topics)
         self.status.output_language = config.app.output_language
         self.status.alert_mode = config.alerts.default_mode
+        self.status.ui_debug_mode = config.ui.debug_mode
         self.status.source_packages_enabled = list(config.sources.enabled_packages)
         self.status.llm_health = "configured" if getattr(llm_client, "api_key", None) else "missing_api_key"
         self.status.latest_articles_fetched = 0
         self.status.latest_candidates = 0
         self.status.queue_length = 0
         self.status.source_states = self.store.load_all_source_states()
+        self.status.source_selection_summary = []
         self._refresh_reliability_status(config)
         self.status.recent_matches = []
         self.status.recent_event_clusters = []
@@ -277,6 +284,9 @@ class NewsMonitor:
         use_source_cache: bool = True,
     ) -> list[Article]:
         articles: list[Article] = []
+        sources, selection_summary = _sources_for_topic(sources, topic, config)
+        self.status.source_selection_summary = selection_summary + self.status.source_selection_summary
+        self.status.source_selection_summary = self.status.source_selection_summary[:50]
         metadata = source_metadata_index(config)
         cycle_deadline = time.monotonic() + config.fetching.overall_cycle_deadline_seconds
         for source in sources:
@@ -284,6 +294,7 @@ class NewsMonitor:
                 self._log("Overall source cycle deadline reached; remaining sources skipped.")
                 break
             now = utc_now()
+            source_metadata = metadata.get(source.name) or _runtime_source_metadata(source)
             previous_state = self.store.load_source_state(source.name) or self.status.source_states.get(source.name, {})
             next_retry_at = _parse_status_time(previous_state.get("next_retry_at"))
             if config.smart_polling.enabled and next_retry_at and now < next_retry_at:
@@ -311,7 +322,7 @@ class NewsMonitor:
                     increment(funnel, "articles_fetched", len(cached_articles))
                     state = source_state_payload(
                         source_name=source.name,
-                        metadata=metadata.get(source.name),
+                        metadata=source_metadata,
                         enabled=True,
                         health="ok",
                         articles=len(cached_articles),
@@ -344,7 +355,7 @@ class NewsMonitor:
                     self.store.save_source_cache(cache_key, source.name, topic.name, articles_to_cache_payload(fetched))
                 state = source_state_payload(
                     source_name=source.name,
-                    metadata=metadata.get(source.name),
+                    metadata=source_metadata,
                     enabled=True,
                     health="ok",
                     articles=len(fetched),
@@ -394,7 +405,7 @@ class NewsMonitor:
                 )
                 state = source_state_payload(
                     source_name=source.name,
-                    metadata=metadata.get(source.name),
+                    metadata=source_metadata,
                     enabled=True,
                     health="error",
                     articles=len(cached_articles),
@@ -495,6 +506,8 @@ class NewsMonitor:
         self.status.source_summary = source_summary(config, self.status.source_states)
         self.status.source_cache_summary = _cache_summary(self.status.source_states)
         self.status.source_backoff_summary = _backoff_summary(self.status.source_states)
+        if not self.status.source_selection_summary:
+            self.status.source_selection_summary = []
         self.status.source_tier_distribution = source_tier_distribution(config, self.status.source_states)
         self.status.top_failing_sources = top_failing_sources(self.status.source_states)
         self.status.intelligence_gaps = compute_intelligence_gaps(config, self.status.source_states)
@@ -568,6 +581,42 @@ class NewsMonitor:
                     threshold=threshold,
                 )
                 continue
+            verification = build_verification_report(cluster, analysis)
+            gate = notification_gate_decision(topic, verification)
+            if not gate.should_notify:
+                increment(funnel, "event_clusters_rejected_by_llm")
+                reject(funnel, "low_confidence")
+                self._log(f"Verification gate skipped alert for '{cluster.title}': {gate.reason}")
+                continue
+            analysis.verification_status = gate.status
+            analysis.confidence_score = gate.confidence_score
+            analysis.report_include_timeline = topic.report_include_timeline
+            analysis.report_include_source_comparison = topic.report_include_source_comparison
+            analysis.report_include_user_action = topic.report_include_user_action
+            if topic.report_include_source_comparison:
+                analysis.source_comparison = [
+                    {
+                        "source": item.source_name,
+                        "confidence": item.confidence_level,
+                        "score": item.credibility_score,
+                        "reasons": item.reasons,
+                        "risks": item.risks,
+                    }
+                    for item in verification.source_credibility
+                ]
+            else:
+                analysis.source_comparison = []
+            _apply_topic_report_style(topic, analysis)
+            if gate.status in {"unconfirmed", "developing"}:
+                analysis.current_status = f"{gate.user_label}: {analysis.current_status or gate.reason}"
+                analysis.uncertainty_notes = " ".join(
+                    item
+                    for item in [
+                        analysis.uncertainty_notes,
+                        gate.reason,
+                    ]
+                    if item
+                )
             increment(funnel, "llm_accepted")
             if not cooldown_allows_alert(self.store, topic):
                 reject(funnel, "cooldown")
@@ -606,6 +655,8 @@ class NewsMonitor:
                     "source_count": cluster.article_count,
                     "event_cluster_id": cluster.cluster_id,
                     "relevance_score": analysis.relevance_score,
+                    "verification_status": analysis.verification_status,
+                    "confidence_score": analysis.confidence_score,
                 }
             )
             self._emit_status()
@@ -788,7 +839,155 @@ def build_sources(config: AppConfig) -> list[NewsSource]:
     for custom_source in config.sources.custom_sources:
         if custom_source.enabled:
             sources.append(CustomRssSource(custom_source, timeout))
+    if config.social_sources.x.enabled:
+        sources.append(XRecentSearchSource(config.social_sources.x))
     return sources
+
+
+def _sources_for_topic(
+    sources: list[NewsSource], topic: TopicConfig, config: AppConfig
+) -> tuple[list[NewsSource], list[dict]]:
+    manual_sources = [source for source in sources if not _is_social_signal_source(source)]
+    social_sources = [
+        source
+        for source in sources
+        if _is_social_signal_source(source) and topic.social_enabled and topic.source_mode in {"auto", "hybrid"}
+    ]
+    manual_summary = [_manual_source_selection_summary(topic, source) for source in manual_sources]
+    social_summary = [_social_source_selection_summary(topic, source) for source in social_sources]
+    if topic.source_mode == "manual":
+        return manual_sources, manual_summary
+    timeout = config.fetching.per_source_timeout_seconds
+    selected_sources = [
+        selected
+        for selected in discover_sources_for_topic(topic, config.sources)
+        if selected.candidate.source_type in {"rss", "arxiv", "company_ir", "gov", "sec", "academic"}
+    ]
+    discovered = [
+        CustomRssSource(_source_candidate_to_custom_source(selected), timeout) for selected in selected_sources
+    ]
+    discovered_summary = [_discovered_source_selection_summary(topic, selected) for selected in selected_sources]
+    if topic.source_mode == "auto":
+        return _dedupe_sources([*discovered, *social_sources]), [*discovered_summary, *social_summary]
+    return (
+        _dedupe_sources([*manual_sources, *discovered, *social_sources]),
+        [*manual_summary, *discovered_summary, *social_summary],
+    )
+
+
+def _manual_source_selection_summary(topic: TopicConfig, source: NewsSource) -> dict[str, object]:
+    source_config = getattr(source, "source_config", None)
+    return {
+        "topic": topic.name,
+        "source_mode": topic.source_mode,
+        "source": getattr(source, "name", "unknown"),
+        "source_type": getattr(source_config, "kind", source.__class__.__name__),
+        "reason": "manual configured source",
+        "expected_value": "user-selected source coverage",
+        "risk": getattr(source_config, "bias_hint", None),
+        "priority": None,
+        "auto_selected": False,
+    }
+
+
+def _discovered_source_selection_summary(topic: TopicConfig, selected) -> dict[str, object]:
+    return {
+        "topic": topic.name,
+        "source_mode": topic.source_mode,
+        "source": selected.candidate.name,
+        "source_type": selected.candidate.source_type,
+        "reason": selected.reason,
+        "expected_value": selected.expected_value,
+        "risk": selected.risk,
+        "priority": selected.priority,
+        "auto_selected": True,
+        "domain_tags": selected.candidate.domain_tags,
+        "country_or_region": selected.candidate.country_or_region,
+    }
+
+
+def _social_source_selection_summary(topic: TopicConfig, source: NewsSource) -> dict[str, object]:
+    return {
+        "topic": topic.name,
+        "source_mode": topic.source_mode,
+        "source": getattr(source, "name", "unknown"),
+        "source_type": "x" if isinstance(source, XRecentSearchSource) else source.__class__.__name__,
+        "reason": "topic allows configured social signal source",
+        "expected_value": "near-real-time signal that must be corroborated",
+        "risk": "social media signal; requires corroboration",
+        "priority": None,
+        "auto_selected": True,
+    }
+
+
+def _source_candidate_to_custom_source(selected) -> CustomNewsSourceConfig:
+    candidate = selected.candidate
+    source_role = "official" if candidate.source_type in {"gov", "sec"} else "custom"
+    if candidate.source_type == "company_ir":
+        source_role = "company_ir"
+    return CustomNewsSourceConfig(
+        name=candidate.name,
+        url=candidate.url,
+        enabled=True,
+        kind="rss",
+        category=(candidate.domain_tags[0] if candidate.domain_tags else "Custom"),
+        reliability_score=candidate.credibility_hint if candidate.credibility_hint is not None else 0.6,
+        source_tier=1 if candidate.credibility_hint and candidate.credibility_hint >= 0.85 else 3,
+        source_role=source_role,
+        default_language=candidate.language,
+        editorial_context=selected.reason,
+        bias_hint=selected.risk,
+    )
+
+
+def _apply_topic_report_style(topic: TopicConfig, analysis: LLMAnalysis) -> None:
+    analysis.report_include_timeline = topic.report_include_timeline
+    analysis.report_include_source_comparison = topic.report_include_source_comparison
+    analysis.report_include_user_action = topic.report_include_user_action
+    if not topic.report_include_timeline:
+        analysis.timeline = []
+    if not topic.report_include_source_comparison:
+        analysis.source_comparison = []
+    if not topic.report_include_user_action:
+        analysis.suggested_actions = []
+
+
+def _runtime_source_metadata(source: NewsSource) -> dict[str, object] | None:
+    source_config = getattr(source, "source_config", None)
+    if not isinstance(source_config, CustomNewsSourceConfig):
+        return None
+    return {
+        "category": source_config.category,
+        "language": source_config.default_language,
+        "source_type": source_config.kind,
+        "source_tier": source_config.source_tier,
+        "source_role": source_config.source_role,
+        "state_affiliated": source_config.state_affiliated,
+        "propaganda_risk": source_config.propaganda_risk,
+        "reliability_score": source_config.reliability_score,
+        "ownership": source_config.ownership,
+        "bias_hint": source_config.bias_hint,
+        "editorial_context": source_config.editorial_context,
+        "selection_reason": source_config.editorial_context,
+        "selection_risk": source_config.bias_hint,
+    }
+
+
+def _dedupe_sources(sources: list[NewsSource]) -> list[NewsSource]:
+    deduped: list[NewsSource] = []
+    seen: set[tuple[str, str]] = set()
+    for source in sources:
+        source_url = getattr(getattr(source, "source_config", None), "url", "") or getattr(source, "url", "")
+        key = (getattr(source, "name", "").casefold(), str(source_url).casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(source)
+    return deduped
+
+
+def _is_social_signal_source(source: NewsSource) -> bool:
+    return isinstance(source, XRecentSearchSource)
 
 
 def _source_cache_key(source_name: str, topic_name: str) -> str:

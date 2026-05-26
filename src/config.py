@@ -20,6 +20,7 @@ from src.models import (
     FetchingSettings,
     GenericWebhookSettings,
     IntelligenceGapSettings,
+    LLMProviderSettings,
     LLMSettings,
     LocalServerSettings,
     MonitorSettings,
@@ -29,6 +30,7 @@ from src.models import (
     QualitySettings,
     RelayWebhookSettings,
     SmartPollingSettings,
+    SocialSourcesSettings,
     SourceCacheSettings,
     SourceHealthSettings,
     SourceLibraryItem,
@@ -36,7 +38,10 @@ from src.models import (
     SourceToggle,
     TelegramSettings,
     TopicConfig,
+    UiSettings,
     WebhookSettings,
+    XCostGuardSettings,
+    XSourceSettings,
 )
 from src.secrets import load_env_file
 from src.sources.library import default_source_library, merge_source_library
@@ -63,6 +68,26 @@ PUBLIC_RSS_DEFAULTS = [
 ]
 SOURCE_ROLES = {"official", "wire", "major_media", "niche_media", "company_ir", "aggregator", "blog", "custom"}
 PROPAGANDA_RISKS = {"low", "medium", "high", "unknown"}
+SOURCE_MODES = {"manual", "auto", "hybrid"}
+KNOWN_TOPIC_DOMAINS = {
+    "technology",
+    "ai_industry",
+    "finance",
+    "public_companies",
+    "politics",
+    "elections",
+    "geopolitics",
+    "history",
+    "science",
+    "health",
+    "culture",
+    "general_breaking_news",
+    "public_policy",
+    "local_news",
+    "semiconductor",
+    "custom",
+}
+OPENAI_COMPATIBLE_PROVIDERS = {"openai_compatible", "openai", "deepseek"}
 
 
 class ConfigError(ValueError):
@@ -149,6 +174,7 @@ def parse_config(data: dict[str, Any]) -> AppConfig:
         quality=_parse_quality(data.get("quality", {})),
         notifications=_parse_notifications(data.get("notifications", {})),
         sources=_parse_sources(data.get("sources", {})),
+        social_sources=_parse_social_sources(data.get("social_sources", {})),
         source_health=_parse_source_health(data.get("source_health", {})),
         source_cache=_parse_source_cache(data.get("source_cache", {})),
         smart_polling=_parse_smart_polling(data.get("smart_polling", {})),
@@ -157,6 +183,7 @@ def parse_config(data: dict[str, Any]) -> AppConfig:
         enrichment=_parse_enrichment(data.get("enrichment", {}), app.output_language),
         bias=_parse_bias(data.get("bias", {})),
         local_server=_parse_local_server(data.get("local_server", {})),
+        ui=_parse_ui(data.get("ui", {})),
         notifiers=_parse_notifiers(data.get("notifiers", {})),
         topics=[_parse_topic(item) for item in data.get("topics", []) or []],
     )
@@ -192,6 +219,8 @@ def validate_config(config: AppConfig) -> None:
         raise ConfigError("LLM timeout and max tokens must be positive.")
     if config.llm.preset not in {"recommended", "custom"}:
         raise ConfigError("LLM preset must be recommended or custom.")
+    if config.llm.provider not in OPENAI_COMPATIBLE_PROVIDERS:
+        raise ConfigError("LLM provider must be openai_compatible, openai, or deepseek.")
     if not 0 <= config.llm.temperature <= 2:
         raise ConfigError("LLM temperature must be between 0 and 2.")
     if not 0 <= config.llm.top_p <= 1:
@@ -200,6 +229,11 @@ def validate_config(config: AppConfig) -> None:
         raise ConfigError("LLM presence_penalty must be between -2 and 2.")
     if not is_valid_http_url(config.llm.base_url):
         raise ConfigError("LLM base URL must be a valid HTTP or HTTPS URL.")
+    for provider_name in config.llm.fallback_providers:
+        if provider_name not in config.llm.providers and provider_name not in OPENAI_COMPATIBLE_PROVIDERS:
+            raise ConfigError(f"Unknown LLM fallback provider: {provider_name}")
+    for name, provider in config.llm.providers.items():
+        validate_llm_provider(name, provider)
     validate_language(config.app.output_language, "App output language")
     validate_enrichment(config.enrichment)
     validate_bias(config.bias)
@@ -208,6 +242,7 @@ def validate_config(config: AppConfig) -> None:
     validate_quality(config.quality)
     validate_notifications(config.notifications)
     validate_sources(config.sources)
+    validate_social_sources(config.social_sources)
     validate_source_health(config.source_health)
     validate_source_cache(config.source_cache)
     validate_smart_polling(config.smart_polling)
@@ -272,6 +307,22 @@ def validate_sources(sources: SourceSettings) -> None:
         if source.help_url and not is_valid_http_url(source.help_url):
             raise ConfigError(f"Source library help URL is invalid: {source.help_url}")
         library_ids.add(source.id)
+
+
+def validate_social_sources(settings: SocialSourcesSettings) -> None:
+    x = settings.x
+    if x.enabled and not x.bearer_token_env.strip():
+        raise ConfigError("X.com source requires bearer_token_env when enabled.")
+    if x.max_posts_per_topic_per_run < 1:
+        raise ConfigError("X.com max_posts_per_topic_per_run must be positive.")
+    if not 1 <= x.search_recent_days_limit <= 7:
+        raise ConfigError("X.com search_recent_days_limit must be between 1 and 7.")
+    if x.min_author_followers is not None and x.min_author_followers < 0:
+        raise ConfigError("X.com min_author_followers cannot be negative.")
+    if x.cost_guard.daily_max_read_posts < 1:
+        raise ConfigError("X.com daily_max_read_posts must be positive.")
+    if not 1 <= x.cost_guard.warn_when_reaching_percent <= 100:
+        raise ConfigError("X.com warn_when_reaching_percent must be between 1 and 100.")
 
 
 def validate_alerts(settings: AlertSettings) -> None:
@@ -394,9 +445,17 @@ def validate_topic(topic: TopicConfig) -> None:
         raise ConfigError(f"Topic '{topic.name}' requires a prompt.")
     if not topic.broad_search and not [keyword for keyword in topic.keywords if keyword.strip()]:
         raise ConfigError(f"Topic '{topic.name}' needs at least one keyword or broad search mode.")
+    if topic.source_mode not in SOURCE_MODES:
+        raise ConfigError(f"Topic '{topic.name}' source_mode must be manual, auto, or hybrid.")
     if not 0 <= int(topic.min_relevance_score) <= 100:
         raise ConfigError(f"Topic '{topic.name}' threshold must be between 0 and 100.")
+    if not 0 <= float(topic.min_confidence_score) <= 1:
+        raise ConfigError(f"Topic '{topic.name}' confidence threshold must be between 0 and 1.")
     validate_language(topic.output_language, f"Topic '{topic.name}' output language")
+    for domain in topic.domains:
+        normalized = domain.strip().casefold().replace("-", "_").replace(" ", "_")
+        if normalized and normalized not in KNOWN_TOPIC_DOMAINS:
+            raise ConfigError(f"Topic '{topic.name}' has an unknown domain: {domain}")
     if topic.poll_interval_seconds is not None and topic.poll_interval_seconds < 15:
         raise ConfigError(f"Topic '{topic.name}' poll interval must be at least 15 seconds.")
     if topic.cooldown_minutes is not None and topic.cooldown_minutes < 0:
@@ -428,19 +487,93 @@ def _parse_monitor(data: dict[str, Any]) -> MonitorSettings:
 def _parse_llm(data: dict[str, Any]) -> LLMSettings:
     preset = str(data.get("preset", "recommended"))
     defaults = RECOMMENDED_LLM_DEFAULTS if preset == "recommended" else {}
+    providers = {
+        str(name): _parse_llm_provider(str(name), item or {})
+        for name, item in (data.get("providers", {}) or {}).items()
+    }
+    provider_name = str(data.get("provider", "openai_compatible"))
+    resolved_provider = _resolve_llm_provider(provider_name, providers)
     return LLMSettings(
         preset=preset,
-        provider=str(data.get("provider", "openai_compatible")),
-        base_url=str(data.get("base_url", "https://api.openai.com/v1")),
-        model=str(data.get("model", "gpt-4.1-mini")),
-        api_key_env=str(data.get("api_key_env", "LLM_API_KEY")),
-        structured_outputs=bool(data.get("structured_outputs", True)),
+        provider=provider_name,
+        fallback_providers=[str(item) for item in data.get("fallback_providers", []) or []],
+        base_url=str(data.get("base_url", resolved_provider.base_url)),
+        model=str(data.get("model", resolved_provider.model)),
+        api_key_env=str(data.get("api_key_env", resolved_provider.api_key_env)),
+        providers=providers,
+        structured_outputs=bool(data.get("structured_outputs", resolved_provider.structured_outputs)),
         temperature=float(data.get("temperature", defaults.get("temperature", 0.7))),
         top_p=float(data.get("top_p", defaults.get("top_p", 1.0))),
         presence_penalty=float(data.get("presence_penalty", defaults.get("presence_penalty", 0.0))),
         max_tokens=int(data.get("max_tokens", defaults.get("max_tokens", 1024))),
-        timeout_seconds=int(data.get("timeout_seconds", defaults.get("timeout_seconds", 30))),
+        timeout_seconds=int(data.get("timeout_seconds", resolved_provider.timeout_seconds)),
+        max_retries=int(data.get("max_retries", resolved_provider.max_retries)),
+        retry_backoff_seconds=float(data.get("retry_backoff_seconds", resolved_provider.retry_backoff_seconds)),
     )
+
+
+def _parse_llm_provider(name: str, data: dict[str, Any]) -> LLMProviderSettings:
+    defaults = _default_llm_provider(name)
+    thinking = data.get("thinking", {}) or {}
+    return LLMProviderSettings(
+        enabled=bool(data.get("enabled", defaults.enabled)),
+        api_key_env=str(data.get("api_key_env", defaults.api_key_env)),
+        base_url=str(data.get("base_url", defaults.base_url)),
+        model=str(data.get("model", defaults.model)),
+        timeout_seconds=int(data.get("timeout_seconds", defaults.timeout_seconds)),
+        max_retries=int(data.get("max_retries", defaults.max_retries)),
+        retry_backoff_seconds=float(data.get("retry_backoff_seconds", defaults.retry_backoff_seconds)),
+        structured_outputs=bool(data.get("structured_outputs", defaults.structured_outputs)),
+        thinking_enabled=bool(thinking.get("enabled", defaults.thinking_enabled)),
+        reasoning_effort=str(thinking.get("reasoning_effort", defaults.reasoning_effort)),
+    )
+
+
+def _default_llm_provider(name: str) -> LLMProviderSettings:
+    if name == "deepseek":
+        return LLMProviderSettings(
+            enabled=False,
+            api_key_env="DEEPSEEK_API_KEY",
+            base_url="https://api.deepseek.com",
+            model="deepseek-v4-flash",
+            timeout_seconds=60,
+            max_retries=3,
+            retry_backoff_seconds=2.0,
+            structured_outputs=True,
+        )
+    if name == "openai":
+        return LLMProviderSettings(
+            enabled=True,
+            api_key_env="OPENAI_API_KEY",
+            base_url="https://api.openai.com/v1",
+            model="gpt-4.1-mini",
+        )
+    return LLMProviderSettings()
+
+
+def _resolve_llm_provider(name: str, providers: dict[str, LLMProviderSettings]) -> LLMProviderSettings:
+    if name in providers:
+        return providers[name]
+    if name in {"openai", "deepseek"}:
+        return _default_llm_provider(name)
+    return _default_llm_provider("openai_compatible")
+
+
+def validate_llm_provider(name: str, provider: LLMProviderSettings) -> None:
+    if name not in OPENAI_COMPATIBLE_PROVIDERS:
+        raise ConfigError(f"Unknown LLM provider configuration: {name}")
+    if provider.enabled and not provider.api_key_env.strip():
+        raise ConfigError(f"LLM provider {name} requires api_key_env when enabled.")
+    if not is_valid_http_url(provider.base_url):
+        raise ConfigError(f"LLM provider {name} base_url must be a valid HTTP or HTTPS URL.")
+    if not provider.model.strip():
+        raise ConfigError(f"LLM provider {name} model is required.")
+    if provider.timeout_seconds <= 0:
+        raise ConfigError(f"LLM provider {name} timeout_seconds must be positive.")
+    if provider.max_retries < 0:
+        raise ConfigError(f"LLM provider {name} max_retries cannot be negative.")
+    if provider.retry_backoff_seconds < 0:
+        raise ConfigError(f"LLM provider {name} retry_backoff_seconds cannot be negative.")
 
 
 def _parse_alerts(data: dict[str, Any]) -> AlertSettings:
@@ -500,6 +633,28 @@ def _parse_sources(data: dict[str, Any]) -> SourceSettings:
         enabled_packages=[str(item) for item in data.get("enabled_packages", []) or []],
         library=library,
         custom_sources=[_parse_custom_source(item) for item in data.get("custom_sources", []) or []],
+    )
+
+
+def _parse_social_sources(data: dict[str, Any]) -> SocialSourcesSettings:
+    x_data = data.get("x", {}) or {}
+    guard_data = x_data.get("cost_guard", {}) or {}
+    return SocialSourcesSettings(
+        x=XSourceSettings(
+            enabled=bool(x_data.get("enabled", False)),
+            bearer_token_env=str(x_data.get("bearer_token_env", "X_BEARER_TOKEN")),
+            max_posts_per_topic_per_run=int(x_data.get("max_posts_per_topic_per_run", 25)),
+            include_retweets=bool(x_data.get("include_retweets", False)),
+            min_author_followers=_optional_int(x_data.get("min_author_followers")),
+            trusted_accounts=[str(item) for item in x_data.get("trusted_accounts", []) or []],
+            blocked_accounts=[str(item) for item in x_data.get("blocked_accounts", []) or []],
+            search_recent_days_limit=int(x_data.get("search_recent_days_limit", 7)),
+            cost_guard=XCostGuardSettings(
+                enabled=bool(guard_data.get("enabled", True)),
+                daily_max_read_posts=int(guard_data.get("daily_max_read_posts", 500)),
+                warn_when_reaching_percent=int(guard_data.get("warn_when_reaching_percent", 80)),
+            ),
+        )
     )
 
 
@@ -575,6 +730,10 @@ def _parse_local_server(data: dict[str, Any]) -> LocalServerSettings:
         allow_lan=allow_lan,
         sse_enabled=bool(data.get("sse_enabled", True)),
     )
+
+
+def _parse_ui(data: dict[str, Any]) -> UiSettings:
+    return UiSettings(debug_mode=bool(data.get("debug_mode", False)))
 
 
 def _parse_notifiers(data: dict[str, Any]) -> NotifierSettings:
@@ -756,19 +915,43 @@ def _metadata_defaults(category: str, ownership: str, bias_hint: str, source_typ
 
 
 def _parse_topic(data: dict[str, Any]) -> TopicConfig:
+    prompt = str(data.get("prompt", data.get("user_prompt", "")))
+    threshold = data.get("notification_threshold", {}) or {}
+    report_style = data.get("report_style", {}) or {}
+    relevance_score = data.get("min_relevance_score", threshold.get("min_relevance_score", 80))
     return TopicConfig(
+        id=str(data.get("id")) if data.get("id") is not None else None,
         name=str(data.get("name", "")),
         enabled=bool(data.get("enabled", True)),
-        output_language=str(data.get("output_language", "zh-CN")),
-        min_relevance_score=int(data.get("min_relevance_score", 80)),
+        output_language=str(data.get("output_language", data.get("language", "zh-CN"))),
+        min_relevance_score=_parse_relevance_score(relevance_score),
+        min_confidence_score=float(threshold.get("min_confidence_score", data.get("min_confidence_score", 0.0))),
         cooldown_minutes=_optional_int(data.get("cooldown_minutes")),
         poll_interval_seconds=_optional_int(data.get("poll_interval_seconds")),
-        prompt=str(data.get("prompt", "")),
+        prompt=prompt,
         keywords=[str(item) for item in data.get("keywords", []) or []],
         related_stocks=[str(item) for item in data.get("related_stocks", []) or []],
         official_rss_urls=[str(item) for item in data.get("official_rss_urls", []) or []],
         broad_search=bool(data.get("broad_search", False)),
+        source_mode=str(data.get("source_mode", "manual")),  # type: ignore[arg-type]
+        domains=[_normalize_domain(item) for item in data.get("domains", []) or []],
+        preferred_regions=[str(item) for item in data.get("preferred_regions", []) or []],
+        social_enabled=bool(data.get("social_enabled", False)),
+        report_include_timeline=bool(report_style.get("include_timeline", True)),
+        report_include_source_comparison=bool(report_style.get("include_source_comparison", True)),
+        report_include_user_action=bool(report_style.get("include_user_action", True)),
     )
+
+
+def _normalize_domain(value: object) -> str:
+    return str(value).strip().casefold().replace("-", "_").replace(" ", "_")
+
+
+def _parse_relevance_score(value: object) -> int:
+    number = float(value)
+    if 0 <= number <= 1:
+        return int(round(number * 100))
+    return int(round(number))
 
 
 def _optional_int(value: Any) -> int | None:

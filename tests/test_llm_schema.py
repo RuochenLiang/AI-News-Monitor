@@ -239,3 +239,32 @@ def test_structured_output_unsupported_response_falls_back_to_json_object():
         "json_schema",
         "json_object",
     ]
+
+
+def test_topic_report_style_preferences_are_sent_and_applied_to_analysis():
+    client = RecordingClient([_chat_response(json.dumps(VALID_JSON))])
+    llm = LLMClient(LLMSettings(structured_outputs=False), api_key="test-key", client=client)
+    article = Article("Title", "https://example.com/a", "Example", snippet="Snippet", language="en")
+    topic = TopicConfig(
+        "Topic",
+        True,
+        "Prompt",
+        ["chip"],
+        report_include_timeline=False,
+        report_include_source_comparison=False,
+        report_include_user_action=False,
+    )
+
+    analysis = llm.analyze_article(topic, article)
+    user_payload = json.loads(client.requests[0]["json"]["messages"][1]["content"])
+
+    assert user_payload["report_preferences"] == {
+        "include_timeline": False,
+        "include_source_comparison": False,
+        "include_user_action": False,
+    }
+    assert analysis.timeline == []
+    assert analysis.suggested_actions == []
+    assert analysis.report_include_timeline is False
+    assert analysis.report_include_source_comparison is False
+    assert analysis.report_include_user_action is False

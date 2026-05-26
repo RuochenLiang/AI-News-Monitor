@@ -132,46 +132,57 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("""
             QWidget {
                 font-size: 14px;
-                color: #1d1d1f;
-                selection-background-color: #0a84ff;
+                color: #172033;
+                selection-background-color: #2563eb;
             }
             QMainWindow, QTabWidget::pane {
-                background: #f5f5f7;
+                background: #eef5f2;
                 border: 0;
+            }
+            QTabWidget, QSplitter, QScrollArea, QScrollArea > QWidget > QWidget {
+                background: #eef5f2;
             }
             #PageTitle {
                 font-size: 26px;
                 font-weight: 650;
                 margin: 14px 0 18px 0;
             }
-            #StatCard, QGroupBox {
-                background: #ffffff;
-                border: 1px solid #e5e5ea;
+            #StatCard, #FeedbackPanel, QGroupBox {
+                background: #fbfcfd;
+                border: 1px solid #d6e2df;
                 border-radius: 8px;
                 margin-top: 12px;
                 padding: 14px;
+            }
+            #StatCard {
+                border-left: 4px solid #5ba7a1;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 14px;
                 padding: 0 6px;
-                color: #6e6e73;
+                color: #506176;
                 font-weight: 600;
+            }
+            #StatLabel, #PanelTitle {
+                color: #506176;
+                font-weight: 650;
             }
             #StatValue {
                 font-size: 18px;
                 font-weight: 650;
+                color: #142033;
             }
             #LiveBanner {
-                background: #eaf4ff;
-                border: 1px solid #b9dcff;
+                background: #e7f3f0;
+                border: 1px solid #acd2cb;
                 border-radius: 8px;
                 padding: 10px 12px;
-                color: #0b4f8a;
+                color: #0f5d57;
                 font-weight: 600;
             }
             QPushButton {
-                background: #0a84ff;
+                background: #2563eb;
                 color: white;
                 border: 0;
                 border-radius: 8px;
@@ -179,31 +190,54 @@ class MainWindow(QMainWindow):
                 font-weight: 600;
             }
             QPushButton:hover {
-                background: #0071e3;
+                background: #1d4ed8;
+            }
+            QPushButton#SecondaryButton {
+                background: #f7faf9;
+                color: #172033;
+                border: 1px solid #cad8d5;
+            }
+            QPushButton#SecondaryButton:hover {
+                background: #e7f3f0;
+                border-color: #5ba7a1;
+            }
+            QPushButton#DangerButton {
+                background: #b42318;
+            }
+            QPushButton#DangerButton:hover {
+                background: #912018;
             }
             QPushButton:disabled {
-                background: #c7c7cc;
+                background: #c6d1d5;
+                color: #5d697d;
             }
             QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox, QListWidget {
-                background: white;
-                border: 1px solid #d2d2d7;
+                background: #ffffff;
+                border: 1px solid #cfd9e2;
                 border-radius: 8px;
                 padding: 8px;
             }
             QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QListWidget:focus {
-                border: 1px solid #0a84ff;
+                border: 1px solid #2563eb;
             }
             QScrollArea {
                 border: 0;
-                background: #f5f5f7;
+                background: #eef5f2;
+            }
+            QListWidget::item {
+                border-bottom: 1px solid #edf2f5;
+                padding: 7px;
             }
             QTabBar::tab {
-                padding: 12px 22px;
-                color: #6e6e73;
+                padding: 12px 20px;
+                color: #506176;
+                border-bottom: 2px solid transparent;
             }
             QTabBar::tab:selected {
                 font-weight: 650;
-                color: #1d1d1f;
+                color: #172033;
+                border-bottom: 2px solid #0f766e;
+                background: #fbfcfd;
             }
             """)
 

@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from src.aggregation.topic_timeline import build_timeline, cluster_to_llm_payload, source_links_from_articles
 from src.diagnostics import (
     DiagnosticResult,
     classify_llm_http_error,
@@ -16,7 +17,6 @@ from src.diagnostics import (
     is_valid_http_url,
     missing_required_result,
 )
-from src.event_synthesis import build_timeline, cluster_to_llm_payload, source_links_from_articles
 from src.models import (
     Article,
     EventCluster,
@@ -77,7 +77,7 @@ class LLMClient:
                     configured=False,
                 )
             return missing_required_result("llm", missing, required_fields=required_fields)
-        if self.settings.provider != "openai_compatible":
+        if self.settings.provider not in {"openai_compatible", "openai", "deepseek"}:
             return diagnostic_error(
                 "llm",
                 "unsupported_model_api",
@@ -116,6 +116,8 @@ class LLMClient:
                 self._chat_url(),
                 headers=self._headers(),
                 json=self._test_chat_body(),
+                retries=self.settings.max_retries,
+                backoff_seconds=self.settings.retry_backoff_seconds,
             )
             payload = response.json()
             content = payload["choices"][0]["message"]["content"]
@@ -164,7 +166,12 @@ class LLMClient:
     def _fetch_model_ids(self, client: httpx.Client) -> list[str] | None:
         try:
             response = request_with_retries(
-                client, "GET", self.settings.base_url.rstrip("/") + "/models", headers=self._headers()
+                client,
+                "GET",
+                self.settings.base_url.rstrip("/") + "/models",
+                headers=self._headers(),
+                retries=self.settings.max_retries,
+                backoff_seconds=self.settings.retry_backoff_seconds,
             )
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in {404, 405}:
@@ -236,6 +243,7 @@ class LLMClient:
                 fallback_articles,
                 fallback_relation_reason,
                 fallback_article_count,
+                report_preferences=_report_preferences_from_messages(messages),
             )
         except (LLMError, ValueError) as first_error:
             logger.warning("LLM returned invalid JSON, trying repair once: %s", first_error)
@@ -262,6 +270,7 @@ class LLMClient:
                 fallback_articles,
                 fallback_relation_reason,
                 fallback_article_count,
+                report_preferences=_report_preferences_from_messages(messages),
             )
 
     def translate_and_summarize(self, article: Article, target_language: str) -> dict[str, str]:
@@ -369,13 +378,17 @@ class LLMClient:
             "when sources conflict, keep the output concise enough for phone notification channels, and include "
             "links to all important sources. Use natural Simplified Chinese when output_language is zh-CN and "
             "clean English when output_language is en. Technical names such as NVIDIA, TSMC, HBM, GDELT, RSS, "
-            "and LLM may remain English. Do not provide personalized financial advice. Return strict JSON only."
+            "and LLM may remain English. Respect report_preferences: when include_timeline is false, return an "
+            "empty timeline array; when include_user_action is false, return an empty suggested_actions array and "
+            "use watch_only unless urgency is clearly justified by the sources. Do not provide personalized "
+            "financial advice. Return strict JSON only."
         )
         user = {
             "topic_prompt": topic.prompt,
             "output_language": topic.output_language,
             "keywords": topic.keywords,
             "related_stock_watchlist_candidates": topic.related_stocks,
+            "report_preferences": _topic_report_preferences(topic),
             "event_cluster": event_payload,
             "articles": (
                 event_payload["articles"] if event_payload else [_article_payload(article) for article in articles]
@@ -460,7 +473,8 @@ class LLMClient:
             self._chat_url(),
             headers=self._headers(),
             json=body,
-            retries=retries,
+            retries=min(retries, self.settings.max_retries),
+            backoff_seconds=self.settings.retry_backoff_seconds,
         )
 
 
@@ -611,6 +625,36 @@ def _translation_response_schema() -> dict[str, Any]:
     }
 
 
+def _topic_report_preferences(topic: TopicConfig) -> dict[str, bool]:
+    return {
+        "include_timeline": topic.report_include_timeline,
+        "include_source_comparison": topic.report_include_source_comparison,
+        "include_user_action": topic.report_include_user_action,
+    }
+
+
+def _report_preferences_from_messages(messages: list[dict[str, str]]) -> dict[str, bool]:
+    for message in reversed(messages):
+        if message.get("role") != "user":
+            continue
+        try:
+            payload = json.loads(message.get("content") or "{}")
+        except (TypeError, ValueError):
+            continue
+        preferences = payload.get("report_preferences") if isinstance(payload, dict) else None
+        if isinstance(preferences, dict):
+            return {
+                "include_timeline": bool(preferences.get("include_timeline", True)),
+                "include_source_comparison": bool(preferences.get("include_source_comparison", True)),
+                "include_user_action": bool(preferences.get("include_user_action", True)),
+            }
+    return {
+        "include_timeline": True,
+        "include_source_comparison": True,
+        "include_user_action": True,
+    }
+
+
 def _structured_response_format(name: str, schema: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "json_schema",
@@ -746,15 +790,25 @@ def _with_event_defaults(
     articles: list[Article],
     relation_reason: str,
     article_count: int,
+    *,
+    report_preferences: dict[str, bool] | None = None,
 ) -> LLMAnalysis:
+    preferences = report_preferences or {}
+    analysis.report_include_timeline = bool(preferences.get("include_timeline", True))
+    analysis.report_include_source_comparison = bool(preferences.get("include_source_comparison", True))
+    analysis.report_include_user_action = bool(preferences.get("include_user_action", True))
     if not analysis.event_title:
         analysis.event_title = analysis.notification_title or (articles[0].title if articles else "")
     if not analysis.event_summary:
         analysis.event_summary = analysis.summary
     if not analysis.source_links:
         analysis.source_links = source_links_from_articles(articles)
-    if not analysis.timeline:
+    if analysis.report_include_timeline and not analysis.timeline:
         analysis.timeline = build_timeline(articles)
+    if not analysis.report_include_timeline:
+        analysis.timeline = []
+    if not analysis.report_include_user_action:
+        analysis.suggested_actions = []
     if not analysis.relation_reason:
         analysis.relation_reason = relation_reason
     analysis.grouped_article_count = max(article_count, len(articles), analysis.grouped_article_count)

@@ -48,6 +48,7 @@ PROMPT_ARCHIVE_ORDER = (
     "12-structured-outputs-upgrade.md",
     "13-runtime-web-ui-stabilization.md",
     "14-event-synthesis-timeline.md",
+    "15-intelligent-source-discovery-verification-social-deepseek.md",
 )
 
 

@@ -1,5 +1,45 @@
 # Source Guide
 
+## Source Modes
+
+Topics support `manual`, `auto`, and `hybrid` source modes.
+
+- `manual`: use configured sources only. This is the compatibility default.
+- `auto`: select sources from the curated registry based on topic domains.
+- `hybrid`: use configured sources first, then add ranked discovered sources.
+
+Auto discovery ranks source candidates by domain fit, credibility hint, source type, and preferred region. Social media sources are excluded unless the topic enables social signals and the corresponding source is configured.
+
+In the desktop app, the Topics page exposes the next-version topic schema: topic ID, source mode, domains, preferred regions, per-topic social enablement, relevance/confidence thresholds, and report-style toggles. Existing configs that omit these fields still run as `source_mode: manual` with social sources disabled.
+
+The Settings > Sources tab also exposes X.com recent-search controls. Keep X disabled unless you have reviewed X.com API access and cost, then enable it globally and enable social sources only on the topics that should use it.
+
+Use **Preview Source Selection** on the Topics page before saving or running the monitor. It shows manual sources for `manual`/`hybrid` topics and ranked auto-selected candidates for `auto`/`hybrid` topics, including selection reason, expected value, risk, and priority.
+
+The browser console Sources page shows a Source Selection panel after a monitoring cycle. For each selected source it shows:
+
+- topic and source mode
+- source name and source type
+- whether it was manually configured or auto-selected
+- selection reason
+- expected value
+- risk note, when present
+- ranking priority for discovered sources
+
+Use this panel to understand why `auto` or `hybrid` added a source. If a source is noisy, disable the source package, add a blacklist entry, or switch the topic back to `manual`.
+
+## Source Doctor
+
+Run a source health check without opening the desktop UI:
+
+```bash
+python -m ai_news_monitor doctor --check-sources
+```
+
+This checks enabled source adapters with the current config. Some public feeds can rate-limit or fail independently of the app, so treat failures as diagnostics rather than automatic bugs.
+
+If X.com is enabled, the doctor also checks whether `X_BEARER_TOKEN` is configured before any live recent-search fetch is attempted.
+
 AI News Monitor only supports public RSS/Atom feeds, official public feeds, and free public APIs. Do not add paywalled, login-only, private, or unauthorized scraped pages.
 
 ## Source Library
@@ -41,6 +81,20 @@ Built-in source packages:
 - AI Industry Starter
 
 The browser console shows enabled packages, effective enabled source count, fresh source count, included source names, and warnings. If no packages are enabled, treat coverage as incomplete until at least one package or custom source is enabled. If a package is enabled but none of its sources are fresh, test sources, wait for backoff to expire, or add another package.
+
+For broad topics, set `domains` explicitly when possible. The classifier can infer domains from the topic text, but explicit domains make source selection easier to review:
+
+```yaml
+source_mode: hybrid
+domains:
+  - politics
+  - public_policy
+  - semiconductor
+preferred_regions:
+  - US
+  - Taiwan
+social_enabled: false
+```
 
 ## Source Tiers and Roles
 

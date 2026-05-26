@@ -18,6 +18,7 @@ This file consolidates the historical development prompts in their original sequ
 12. [12-structured-outputs-upgrade.md](prompts/12-structured-outputs-upgrade.md)
 13. [13-runtime-web-ui-stabilization.md](prompts/13-runtime-web-ui-stabilization.md)
 14. [14-event-synthesis-timeline.md](prompts/14-event-synthesis-timeline.md)
+15. [15-intelligent-source-discovery-verification-social-deepseek.md](prompts/15-intelligent-source-discovery-verification-social-deepseek.md)
 
 ---
 
@@ -7396,3 +7397,11 @@ This prompt requested runtime stability, source-package coverage, GDELT query ha
 Archive file: [`prompts/14-event-synthesis-timeline.md`](prompts/14-event-synthesis-timeline.md)
 
 This prompt requested deterministic event clustering before LLM synthesis, event-level structured output, timeline extraction, grouped notification rendering, browser event cards, event pipeline diagnostics, documentation updates, and verification.
+
+---
+
+## 15. Intelligent source discovery, verification, social, and DeepSeek prompt
+
+Archive file: [`prompts/15-intelligent-source-discovery-verification-social-deepseek.md`](prompts/15-intelligent-source-discovery-verification-social-deepseek.md)
+
+This prompt requests topic-based source discovery with manual/auto/hybrid modes, source ranking, credibility and claim corroboration, optional X.com signal ingestion, DeepSeek provider support, broader non-tech topic handling, concise verified report cards, notification gating, compatibility migration, documentation updates, and tests.

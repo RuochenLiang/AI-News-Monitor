@@ -32,6 +32,20 @@ Ordered prompt archive:
 12. [12-structured-outputs-upgrade.md](docs/dev-history/prompts/12-structured-outputs-upgrade.md)
 13. [13-runtime-web-ui-stabilization.md](docs/dev-history/prompts/13-runtime-web-ui-stabilization.md)
 14. [14-event-synthesis-timeline.md](docs/dev-history/prompts/14-event-synthesis-timeline.md)
+15. [15-intelligent-source-discovery-verification-social-deepseek.md](docs/dev-history/prompts/15-intelligent-source-discovery-verification-social-deepseek.md)
+
+Prompt 15 introduces the next-version foundation for manual/auto/hybrid source modes, topic-schema editing, verification gates, optional social sources, event aggregation, and OpenAI/DeepSeek provider routing. See [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md), [docs/SOCIAL_SOURCES.md](docs/SOCIAL_SOURCES.md), and [docs/VERIFICATION_PIPELINE.md](docs/VERIFICATION_PIPELINE.md).
+
+Doctor checks are available without opening the desktop UI:
+
+```bash
+python -m ai_news_monitor doctor --check-llm
+python -m ai_news_monitor doctor --check-sources
+```
+
+The desktop Settings screen can configure OpenAI/DeepSeek provider routing, fallback providers, local API-key storage, and disabled-by-default X.com recent-search settings. The Topics screen can configure source mode, topic domains, preferred regions, social enablement, confidence thresholds, and report-style flags.
+Use Preview Source Selection on the Topics screen to inspect manual and auto-selected sources, including reason, expected value, risk, and priority, before running a monitoring cycle.
+Per-topic report-style flags can hide timeline, source-comparison, or suggested-action sections when a topic needs shorter alerts.
 
 ## Quick Start on macOS
 

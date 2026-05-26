@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from src.event_clustering import cluster_event_articles
-from src.event_synthesis import build_timeline
+from src.aggregation.event_clusterer import cluster_event_articles
+from src.aggregation.topic_timeline import build_timeline
 from src.models import Article, TopicConfig
 
 

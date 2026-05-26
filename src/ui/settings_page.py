@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabWidget,
     QTextEdit,
@@ -29,7 +30,7 @@ from PySide6.QtWidgets import (
 from src.config import ConfigError, load_config, save_config, validate_config
 from src.i18n import text
 from src.llm_client import LLMClient
-from src.models import CustomNewsSourceConfig, SourceLibraryItem
+from src.models import CustomNewsSourceConfig, LLMProviderSettings, SourceLibraryItem
 from src.monitor import build_notifiers
 from src.notifiers.email_notifier import EmailNotifier
 from src.notifiers.generic_webhook_notifier import GenericWebhookNotifier
@@ -59,7 +60,8 @@ STATIC_TEXT_KEYS = {
     "Minimum Sources per Cluster": "settings.minimum_sources_per_cluster",
     "LLM Settings": "llm_settings",
     "Mode": "settings.mode",
-    "Provider": "settings.provider",
+    "Primary Provider": "settings.primary_provider",
+    "Fallback Providers": "settings.fallback_providers_llm",
     "OpenAI-compatible Base URL": "llm_base_url",
     "Model": "llm_model",
     "API Key": "llm_api_key",
@@ -68,6 +70,15 @@ STATIC_TEXT_KEYS = {
     "Top P": "settings.top_p",
     "Presence Penalty": "settings.presence_penalty",
     "Timeout Seconds": "settings.timeout_seconds",
+    "Max Retries": "settings.max_retries",
+    "Retry Backoff Seconds": "settings.retry_backoff_seconds",
+    "DeepSeek Fallback Provider": "settings.deepseek_provider",
+    "Enable DeepSeek": "settings.enable_deepseek",
+    "DeepSeek Model": "settings.deepseek_model",
+    "DeepSeek API Key": "settings.deepseek_api_key",
+    "DeepSeek Timeout Seconds": "settings.deepseek_timeout_seconds",
+    "DeepSeek Max Retries": "settings.deepseek_max_retries",
+    "DeepSeek Retry Backoff Seconds": "settings.deepseek_retry_backoff_seconds",
     "Help": "settings.help",
     "Alert Mode, Routing, and Quality Scoring": "settings.alert_quality",
     "Default Alert Mode": "settings.default_alert_mode",
@@ -127,6 +138,18 @@ STATIC_TEXT_KEYS = {
     "Enabled Packages (one per line)": "settings.enabled_packages",
     "Source Library": "settings.source_library",
     "Custom Sources": "settings.custom_sources",
+    "X.com Social Source": "settings.x_social_source",
+    "Enable X.com Recent Search": "settings.enable_x_recent_search",
+    "X Bearer Token": "settings.x_bearer_token",
+    "Max Posts per Topic per Run": "settings.x_max_posts_per_topic",
+    "Include Retweets": "settings.x_include_retweets",
+    "Minimum Author Followers": "settings.x_min_author_followers",
+    "Trusted Accounts (one per line)": "settings.x_trusted_accounts",
+    "Blocked Accounts (one per line)": "settings.x_blocked_accounts",
+    "Recent Search Days Limit": "settings.x_recent_days_limit",
+    "Enable X Cost Guard": "settings.x_enable_cost_guard",
+    "Daily Max Read Posts": "settings.x_daily_max_read_posts",
+    "Warn at Percent": "settings.x_warn_percent",
     "Source Name": "source_name",
     "RSS/Atom URL": "source_url",
     "Reliability 0-1": "settings.reliability",
@@ -149,6 +172,7 @@ STATIC_TEXT_KEYS = {
     "Enable Local Live Server": "settings.enable_local_live_server",
     "Local Server Port": "settings.local_server_port",
     "Allow LAN Access": "settings.allow_lan_access",
+    "Enable Browser Debug Details": "settings.enable_browser_debug_details",
     "Minimize to System Tray": "settings.minimize_to_system_tray",
     "Test LLM": "test_llm",
     "API Key Help": "settings.api_key_help",
@@ -174,6 +198,9 @@ STATIC_TEXT_KEYS = {
 HELP_URLS = {
     "openai_keys": "https://platform.openai.com/api-keys",
     "openai_models": "https://platform.openai.com/docs/models",
+    "deepseek_keys": "https://platform.deepseek.com/api_keys",
+    "deepseek_models": "https://api-docs.deepseek.com/quick_start/pricing",
+    "x_recent_search": "https://docs.x.com/x-api/posts/search/quickstart/recent-search",
     "gmail_app_password": "https://support.google.com/accounts/answer/185833",
     "outlook_smtp": "https://support.microsoft.com/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040",
     "telegram_botfather": "https://core.telegram.org/bots/tutorial",
@@ -254,7 +281,9 @@ class SettingsPage(QWidget):
         self.quality_blacklist_sources = QTextEdit()
         self.quality_category_priority = QTextEdit()
 
-        self.llm_provider = QLineEdit()
+        self.llm_provider = QComboBox()
+        self.llm_provider.addItems(["openai", "deepseek", "openai_compatible"])
+        self.llm_fallback_providers = QLineEdit()
         self.llm_preset = QComboBox()
         self.llm_preset.addItems(["Recommended", "Custom"])
         self.llm_base_url = QLineEdit()
@@ -273,6 +302,21 @@ class SettingsPage(QWidget):
         self.llm_presence_penalty.setSingleStep(0.1)
         self.llm_timeout = QSpinBox()
         self.llm_timeout.setRange(1, 600)
+        self.llm_max_retries = QSpinBox()
+        self.llm_max_retries.setRange(0, 20)
+        self.llm_retry_backoff = QDoubleSpinBox()
+        self.llm_retry_backoff.setRange(0, 60)
+        self.llm_retry_backoff.setSingleStep(0.25)
+        self.deepseek_enabled = QCheckBox("Enable DeepSeek")
+        self.deepseek_model = QLineEdit()
+        self.deepseek_api_key = secret_line_edit()
+        self.deepseek_timeout = QSpinBox()
+        self.deepseek_timeout.setRange(1, 600)
+        self.deepseek_max_retries = QSpinBox()
+        self.deepseek_max_retries.setRange(0, 20)
+        self.deepseek_retry_backoff = QDoubleSpinBox()
+        self.deepseek_retry_backoff.setRange(0, 60)
+        self.deepseek_retry_backoff.setSingleStep(0.25)
         self.test_llm_button = QPushButton("Test LLM")
         self.llm_keys_help_button = QPushButton("API Key Help")
         self.llm_models_help_button = QPushButton("Model Help")
@@ -349,6 +393,7 @@ class SettingsPage(QWidget):
         self.local_server_port = QSpinBox()
         self.local_server_port.setRange(1024, 65535)
         self.local_server_lan = QCheckBox("Allow LAN Access")
+        self.ui_debug_mode = QCheckBox("Enable Browser Debug Details")
 
         self.source_gdelt = QCheckBox("GDELT Free News API")
         self.source_google = QCheckBox("Google News RSS Keyword Source")
@@ -363,6 +408,23 @@ class SettingsPage(QWidget):
         self.test_library_source_button = QPushButton("Test Selected Source")
         self.open_source_website_button = QPushButton("Open Source Website")
         self.rss_help_button = QPushButton("RSS/Atom Help")
+        self.x_enabled = QCheckBox("Enable X.com Recent Search")
+        self.x_bearer_token = secret_line_edit()
+        self.x_max_posts = QSpinBox()
+        self.x_max_posts.setRange(1, 100)
+        self.x_include_retweets = QCheckBox("Include Retweets")
+        self.x_min_author_followers = QSpinBox()
+        self.x_min_author_followers.setRange(0, 1_000_000_000)
+        self.x_min_author_followers.setSpecialValueText("Any")
+        self.x_trusted_accounts = QTextEdit()
+        self.x_blocked_accounts = QTextEdit()
+        self.x_recent_days = QSpinBox()
+        self.x_recent_days.setRange(1, 7)
+        self.x_cost_guard_enabled = QCheckBox("Enable X Cost Guard")
+        self.x_daily_max_read_posts = QSpinBox()
+        self.x_daily_max_read_posts.setRange(1, 1_000_000)
+        self.x_warn_percent = QSpinBox()
+        self.x_warn_percent.setRange(1, 100)
         self.custom_sources = QListWidget()
         self.custom_source_name = QLineEdit()
         self.custom_source_name.setPlaceholderText("Source name, for example Reuters RSS")
@@ -382,9 +444,12 @@ class SettingsPage(QWidget):
         self.remove_source_button = QPushButton("Remove Selected Source")
 
         self.save_button = QPushButton("Save Settings")
+        self.save_button.setObjectName("PrimaryButton")
+        self._apply_field_metrics()
 
     def _build_layout(self) -> None:
         outer = QVBoxLayout(self)
+        outer.setSpacing(12)
         self.title_label = QLabel(text("settings", self.language))
         self.title_label.setObjectName("PageTitle")
         outer.addWidget(self.title_label)
@@ -397,7 +462,7 @@ class SettingsPage(QWidget):
         self.settings_tabs.addTab(self._tab_with(self._language_group()), "General")
         self.settings_tabs.addTab(self._tab_with(self._llm_group()), "LLM")
         self.settings_tabs.addTab(self._tab_with(self._alerts_group()), "Alerts")
-        self.settings_tabs.addTab(self._tab_with(self._sources_group()), "Sources")
+        self.settings_tabs.addTab(self._tab_with(self._sources_group(), self._social_sources_group()), "Sources")
         self.settings_tabs.addTab(
             self._tab_with(
                 self._email_group(),
@@ -410,10 +475,36 @@ class SettingsPage(QWidget):
         )
         self.settings_tabs.addTab(self._tab_with(self._runtime_group()), "Local Server / Advanced")
         layout.addWidget(self.settings_tabs)
-        layout.addWidget(self.save_button)
         layout.addStretch(1)
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(self.save_button)
+        outer.addLayout(footer)
+
+    def _apply_field_metrics(self) -> None:
+        medium_editors = (
+            self.quality_whitelist_sources,
+            self.quality_blacklist_sources,
+            self.quality_category_priority,
+            self.email_to,
+            self.webhook_headers,
+            self.source_packages,
+            self.global_public_urls,
+            self.global_official_urls,
+            self.x_trusted_accounts,
+            self.x_blocked_accounts,
+        )
+        for editor in medium_editors:
+            editor.setMinimumHeight(96)
+            editor.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.webhook_body_template.setMinimumHeight(150)
+        self.webhook_body_template.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.source_library.setMinimumHeight(240)
+        self.custom_sources.setMinimumHeight(180)
+        self.save_button.setMinimumWidth(180)
+        self.save_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
     def apply_language(self, language: str) -> None:
         self.language = language
@@ -454,6 +545,7 @@ class SettingsPage(QWidget):
 
     def _translate_placeholders(self, language: str) -> None:
         self.llm_api_key.setPlaceholderText(text("settings.secret_placeholder", language))
+        self.deepseek_api_key.setPlaceholderText(text("settings.secret_placeholder", language))
         self.email_password.setPlaceholderText(text("settings.secret_placeholder", language))
         self.wecom_url.setPlaceholderText(text("settings.secret_placeholder", language))
         self.wechat_url.setPlaceholderText(text("settings.secret_placeholder", language))
@@ -461,6 +553,7 @@ class SettingsPage(QWidget):
         self.telegram_token.setPlaceholderText(text("settings.secret_placeholder", language))
         self.telegram_chat_id.setPlaceholderText(text("settings.secret_placeholder", language))
         self.webhook_url.setPlaceholderText(text("settings.secret_placeholder", language))
+        self.x_bearer_token.setPlaceholderText(text("settings.secret_placeholder", language))
         self.custom_source_name.setPlaceholderText(text("settings.source_name_placeholder", language))
         self.custom_source_url.setPlaceholderText(text("settings.source_url_placeholder", language))
         self.custom_source_owner.setPlaceholderText(text("settings.owner_placeholder", language))
@@ -482,7 +575,8 @@ class SettingsPage(QWidget):
         group = QGroupBox("LLM Settings")
         form = QFormLayout(group)
         form.addRow("Mode", self.llm_preset)
-        form.addRow("Provider", self.llm_provider)
+        form.addRow("Primary Provider", self.llm_provider)
+        form.addRow("Fallback Providers", self.llm_fallback_providers)
         form.addRow("OpenAI-compatible Base URL", self.llm_base_url)
         form.addRow("Model", self.llm_model)
         form.addRow("API Key", self.llm_api_key)
@@ -491,6 +585,17 @@ class SettingsPage(QWidget):
         form.addRow("Top P", self.llm_top_p)
         form.addRow("Presence Penalty", self.llm_presence_penalty)
         form.addRow("Timeout Seconds", self.llm_timeout)
+        form.addRow("Max Retries", self.llm_max_retries)
+        form.addRow("Retry Backoff Seconds", self.llm_retry_backoff)
+        deepseek_group = QGroupBox("DeepSeek Fallback Provider")
+        deepseek_form = QFormLayout(deepseek_group)
+        deepseek_form.addRow("", self.deepseek_enabled)
+        deepseek_form.addRow("DeepSeek Model", self.deepseek_model)
+        deepseek_form.addRow("DeepSeek API Key", self.deepseek_api_key)
+        deepseek_form.addRow("DeepSeek Timeout Seconds", self.deepseek_timeout)
+        deepseek_form.addRow("DeepSeek Max Retries", self.deepseek_max_retries)
+        deepseek_form.addRow("DeepSeek Retry Backoff Seconds", self.deepseek_retry_backoff)
+        form.addRow(deepseek_group)
         form.addRow("", self.test_llm_button)
         helper_buttons = QHBoxLayout()
         helper_buttons.addWidget(self.llm_keys_help_button)
@@ -637,6 +742,22 @@ class SettingsPage(QWidget):
         layout.addLayout(buttons)
         return group
 
+    def _social_sources_group(self) -> QGroupBox:
+        group = QGroupBox("X.com Social Source")
+        form = QFormLayout(group)
+        form.addRow("", self.x_enabled)
+        form.addRow("X Bearer Token", self.x_bearer_token)
+        form.addRow("Max Posts per Topic per Run", self.x_max_posts)
+        form.addRow("", self.x_include_retweets)
+        form.addRow("Minimum Author Followers", self.x_min_author_followers)
+        form.addRow("Trusted Accounts (one per line)", self.x_trusted_accounts)
+        form.addRow("Blocked Accounts (one per line)", self.x_blocked_accounts)
+        form.addRow("Recent Search Days Limit", self.x_recent_days)
+        form.addRow("", self.x_cost_guard_enabled)
+        form.addRow("Daily Max Read Posts", self.x_daily_max_read_posts)
+        form.addRow("Warn at Percent", self.x_warn_percent)
+        return group
+
     def _runtime_group(self) -> QGroupBox:
         group = QGroupBox("Runtime Settings")
         form = QFormLayout(group)
@@ -649,6 +770,7 @@ class SettingsPage(QWidget):
         form.addRow("", self.local_server_enabled)
         form.addRow("Local Server Port", self.local_server_port)
         form.addRow("", self.local_server_lan)
+        form.addRow("", self.ui_debug_mode)
         form.addRow("", self.run_minimized_to_tray)
         return group
 
@@ -714,7 +836,8 @@ class SettingsPage(QWidget):
         )
 
         self.llm_preset.setCurrentText(_preset_label(config.llm.preset))
-        self.llm_provider.setText(config.llm.provider)
+        self.llm_provider.setCurrentText(config.llm.provider)
+        self.llm_fallback_providers.setText(", ".join(config.llm.fallback_providers))
         self.llm_base_url.setText(config.llm.base_url)
         self.llm_model.setText(config.llm.model)
         self.llm_api_key.setText(self.env_values.get(config.llm.api_key_env, ""))
@@ -723,6 +846,15 @@ class SettingsPage(QWidget):
         self.llm_top_p.setValue(config.llm.top_p)
         self.llm_presence_penalty.setValue(config.llm.presence_penalty)
         self.llm_timeout.setValue(config.llm.timeout_seconds)
+        self.llm_max_retries.setValue(config.llm.max_retries)
+        self.llm_retry_backoff.setValue(config.llm.retry_backoff_seconds)
+        deepseek = _llm_provider_settings(config.llm.providers, "deepseek")
+        self.deepseek_enabled.setChecked(deepseek.enabled)
+        self.deepseek_model.setText(deepseek.model)
+        self.deepseek_api_key.setText(self.env_values.get(deepseek.api_key_env, ""))
+        self.deepseek_timeout.setValue(deepseek.timeout_seconds)
+        self.deepseek_max_retries.setValue(deepseek.max_retries)
+        self.deepseek_retry_backoff.setValue(deepseek.retry_backoff_seconds)
 
         email = config.notifiers.email
         self.email_enabled.setChecked(email.enabled)
@@ -772,6 +904,7 @@ class SettingsPage(QWidget):
         self.local_server_enabled.setChecked(config.local_server.enabled)
         self.local_server_port.setValue(config.local_server.port)
         self.local_server_lan.setChecked(config.local_server.allow_lan)
+        self.ui_debug_mode.setChecked(config.ui.debug_mode)
         self.source_gdelt.setChecked(config.sources.gdelt.enabled)
         self.source_google.setChecked(config.sources.google_news_rss.enabled)
         self.source_yahoo.setChecked(config.sources.yahoo_finance_rss.enabled)
@@ -780,6 +913,18 @@ class SettingsPage(QWidget):
         self.source_packages.setPlainText("\n".join(config.sources.enabled_packages))
         self.global_public_urls.setPlainText("\n".join(config.sources.public_rss.urls))
         self.global_official_urls.setPlainText("\n".join(config.sources.official_rss.urls))
+        x = config.social_sources.x
+        self.x_enabled.setChecked(x.enabled)
+        self.x_bearer_token.setText(self.env_values.get(x.bearer_token_env, ""))
+        self.x_max_posts.setValue(x.max_posts_per_topic_per_run)
+        self.x_include_retweets.setChecked(x.include_retweets)
+        self.x_min_author_followers.setValue(x.min_author_followers or 0)
+        self.x_trusted_accounts.setPlainText("\n".join(x.trusted_accounts))
+        self.x_blocked_accounts.setPlainText("\n".join(x.blocked_accounts))
+        self.x_recent_days.setValue(x.search_recent_days_limit)
+        self.x_cost_guard_enabled.setChecked(x.cost_guard.enabled)
+        self.x_daily_max_read_posts.setValue(x.cost_guard.daily_max_read_posts)
+        self.x_warn_percent.setValue(x.cost_guard.warn_when_reaching_percent)
         self._render_source_library(config.sources.library)
         self._render_custom_sources(config.sources.custom_sources)
         self._apply_preset_states()
@@ -814,7 +959,8 @@ class SettingsPage(QWidget):
                 topic.output_language = config.app.output_language
 
             config.llm.preset = _preset_value(self.llm_preset.currentText())
-            config.llm.provider = self.llm_provider.text().strip() or "openai_compatible"
+            config.llm.provider = self.llm_provider.currentText().strip() or "openai_compatible"
+            config.llm.fallback_providers = _comma_or_lines(self.llm_fallback_providers.text())
             config.llm.base_url = self.llm_base_url.text().strip()
             config.llm.model = self.llm_model.text().strip()
             config.llm.max_tokens = self.llm_max_tokens.value()
@@ -822,6 +968,30 @@ class SettingsPage(QWidget):
             config.llm.top_p = self.llm_top_p.value()
             config.llm.presence_penalty = self.llm_presence_penalty.value()
             config.llm.timeout_seconds = self.llm_timeout.value()
+            config.llm.max_retries = self.llm_max_retries.value()
+            config.llm.retry_backoff_seconds = self.llm_retry_backoff.value()
+            config.llm.providers["openai"] = LLMProviderSettings(
+                enabled=True,
+                api_key_env="OPENAI_API_KEY",
+                base_url=self.llm_base_url.text().strip() or "https://api.openai.com/v1",
+                model=self.llm_model.text().strip() or "gpt-4.1-mini",
+                timeout_seconds=self.llm_timeout.value(),
+                max_retries=self.llm_max_retries.value(),
+                retry_backoff_seconds=self.llm_retry_backoff.value(),
+                structured_outputs=config.llm.structured_outputs,
+            )
+            deepseek_selected = config.llm.provider == "deepseek" or "deepseek" in config.llm.fallback_providers
+            config.llm.providers["deepseek"] = LLMProviderSettings(
+                enabled=self.deepseek_enabled.isChecked() or deepseek_selected,
+                api_key_env="DEEPSEEK_API_KEY",
+                base_url="https://api.deepseek.com",
+                model=self.deepseek_model.text().strip() or "deepseek-v4-flash",
+                timeout_seconds=self.deepseek_timeout.value(),
+                max_retries=self.deepseek_max_retries.value(),
+                retry_backoff_seconds=self.deepseek_retry_backoff.value(),
+                structured_outputs=True,
+            )
+            _sync_primary_llm_settings(config)
 
             email = config.notifiers.email
             email.preset = _preset_value(self.email_preset.currentText())
@@ -858,6 +1028,7 @@ class SettingsPage(QWidget):
             config.local_server.port = self.local_server_port.value()
             config.local_server.allow_lan = self.local_server_lan.isChecked()
             config.local_server.host = "0.0.0.0" if config.local_server.allow_lan else "127.0.0.1"
+            config.ui.debug_mode = self.ui_debug_mode.isChecked()
             config.sources.gdelt.enabled = self.source_gdelt.isChecked()
             config.sources.google_news_rss.enabled = self.source_google.isChecked()
             config.sources.yahoo_finance_rss.enabled = self.source_yahoo.isChecked()
@@ -868,6 +1039,17 @@ class SettingsPage(QWidget):
             config.sources.enabled_packages = _lines(self.source_packages.toPlainText())
             config.sources.library = self._source_library_from_list()
             config.sources.custom_sources = self._custom_sources_from_list()
+            config.social_sources.x.enabled = self.x_enabled.isChecked()
+            config.social_sources.x.bearer_token_env = "X_BEARER_TOKEN"
+            config.social_sources.x.max_posts_per_topic_per_run = self.x_max_posts.value()
+            config.social_sources.x.include_retweets = self.x_include_retweets.isChecked()
+            config.social_sources.x.min_author_followers = self.x_min_author_followers.value() or None
+            config.social_sources.x.trusted_accounts = _lines(self.x_trusted_accounts.toPlainText())
+            config.social_sources.x.blocked_accounts = _lines(self.x_blocked_accounts.toPlainText())
+            config.social_sources.x.search_recent_days_limit = self.x_recent_days.value()
+            config.social_sources.x.cost_guard.enabled = self.x_cost_guard_enabled.isChecked()
+            config.social_sources.x.cost_guard.daily_max_read_posts = self.x_daily_max_read_posts.value()
+            config.social_sources.x.cost_guard.warn_when_reaching_percent = self.x_warn_percent.value()
 
             self._validate_enabled_channel_fields(config)
             validate_config(config)
@@ -976,22 +1158,28 @@ class SettingsPage(QWidget):
         llm_recommended = _preset_value(self.llm_preset.currentText()) == "recommended"
         for widget in (
             self.llm_provider,
+            self.llm_fallback_providers,
             self.llm_base_url,
             self.llm_max_tokens,
             self.llm_temperature,
             self.llm_top_p,
             self.llm_presence_penalty,
             self.llm_timeout,
+            self.llm_max_retries,
+            self.llm_retry_backoff,
         ):
             widget.setEnabled(not llm_recommended)
         if llm_recommended:
-            self.llm_provider.setText("openai_compatible")
+            self.llm_provider.setCurrentText("openai_compatible")
+            self.llm_fallback_providers.clear()
             self.llm_base_url.setText("https://api.openai.com/v1")
             self.llm_max_tokens.setValue(1024)
             self.llm_temperature.setValue(0.7)
             self.llm_top_p.setValue(1.0)
             self.llm_presence_penalty.setValue(0.0)
             self.llm_timeout.setValue(30)
+            self.llm_max_retries.setValue(3)
+            self.llm_retry_backoff.setValue(2.0)
 
         email_recommended = _preset_value(self.email_preset.currentText()) == "recommended"
         for widget in (self.email_host, self.email_port, self.email_tls):
@@ -1108,6 +1296,8 @@ class SettingsPage(QWidget):
             raise ValueError(text("settings.telegram_credentials_required", self.language))
         if config.notifiers.generic_webhook.enabled and not self.webhook_url.text().strip():
             raise ValueError(text("settings.generic_webhook_required", self.language))
+        if config.social_sources.x.enabled and not self.x_bearer_token.text().strip():
+            raise ValueError(text("settings.x_bearer_token_required", self.language))
 
     def _render_custom_sources(self, sources: list[CustomNewsSourceConfig]) -> None:
         self.custom_sources.clear()
@@ -1187,6 +1377,8 @@ class SettingsPage(QWidget):
         values = read_env_values(self.env_path)
         updates = {
             config.llm.api_key_env: self.llm_api_key.text(),
+            "DEEPSEEK_API_KEY": self.deepseek_api_key.text(),
+            "X_BEARER_TOKEN": self.x_bearer_token.text(),
             config.notifiers.email.username_env: self.email_username.text(),
             config.notifiers.email.password_env: self.email_password.text(),
             config.notifiers.email.from_addr_env: self.email_from.text(),
@@ -1208,6 +1400,44 @@ def _preset_label(value: str) -> str:
 
 def _preset_value(label: str) -> str:
     return "custom" if label == "Custom" else "recommended"
+
+
+def _llm_provider_settings(providers: dict[str, LLMProviderSettings], name: str) -> LLMProviderSettings:
+    provider = providers.get(name)
+    if provider:
+        return provider
+    if name == "deepseek":
+        return LLMProviderSettings(
+            enabled=False,
+            api_key_env="DEEPSEEK_API_KEY",
+            base_url="https://api.deepseek.com",
+            model="deepseek-v4-flash",
+            timeout_seconds=60,
+            max_retries=3,
+            retry_backoff_seconds=2.0,
+            structured_outputs=True,
+        )
+    if name == "openai":
+        return LLMProviderSettings(
+            enabled=True,
+            api_key_env="OPENAI_API_KEY",
+            base_url="https://api.openai.com/v1",
+            model="gpt-4.1-mini",
+        )
+    return LLMProviderSettings()
+
+
+def _sync_primary_llm_settings(config) -> None:
+    provider = config.llm.providers.get(config.llm.provider)
+    if not provider:
+        return
+    config.llm.api_key_env = provider.api_key_env
+    config.llm.base_url = provider.base_url
+    config.llm.model = provider.model
+    config.llm.timeout_seconds = provider.timeout_seconds
+    config.llm.max_retries = provider.max_retries
+    config.llm.retry_backoff_seconds = provider.retry_backoff_seconds
+    config.llm.structured_outputs = provider.structured_outputs
 
 
 def _language_label(value: str | None) -> str:

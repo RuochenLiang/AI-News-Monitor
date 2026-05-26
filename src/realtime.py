@@ -187,7 +187,7 @@ class LocalEventServer:
                     return
                 if self.path.startswith("/status") or self.path.startswith("/api/status"):
                     status = status_provider() if status_provider else RuntimeStatus()
-                    self._write_json(status_to_dict(status))
+                    self._write_json(_status_payload(status, config_path))
                     return
                 if self.path.startswith("/source-health") or self.path.startswith("/api/source-health"):
                     status = status_provider() if status_provider else RuntimeStatus()
@@ -386,6 +386,7 @@ def status_to_dict(status: RuntimeStatus) -> dict[str, Any]:
         "source_summary": status.source_summary,
         "source_cache_summary": status.source_cache_summary,
         "source_backoff_summary": status.source_backoff_summary,
+        "source_selection_summary": status.source_selection_summary[:50],
         "source_tier_distribution": status.source_tier_distribution,
         "top_failing_sources": status.top_failing_sources,
         "intelligence_gaps": status.intelligence_gaps,
@@ -395,6 +396,7 @@ def status_to_dict(status: RuntimeStatus) -> dict[str, Any]:
         "readiness": readiness_to_dict(status),
         "llm_health": status.llm_health,
         "local_server_url": status.local_server_url,
+        "ui_debug_mode": status.ui_debug_mode,
         "output_language": status.output_language,
         "alert_mode": status.alert_mode,
         "last_service_check_time": status.last_service_check_time,
@@ -406,6 +408,9 @@ def status_to_dict(status: RuntimeStatus) -> dict[str, Any]:
                 "title": alert.title,
                 "url": alert.article.url,
                 "score": alert.analysis.relevance_score,
+                "relevance_score": alert.analysis.relevance_score,
+                "verification_status": alert.analysis.verification_status,
+                "confidence_score": alert.analysis.confidence_score,
                 "sent_at": alert.sent_at,
                 "event_title": alert.analysis.event_title or alert.title,
                 "current_status": alert.analysis.current_status,
@@ -414,13 +419,28 @@ def status_to_dict(status: RuntimeStatus) -> dict[str, Any]:
                 "relation_reason": alert.analysis.relation_reason,
                 "timeline": [item.to_dict() for item in alert.analysis.timeline[:6]],
                 "source_links": [item.to_dict() for item in alert.analysis.source_links],
+                "source_comparison": alert.analysis.source_comparison,
                 "uncertainties": alert.analysis.uncertainties,
                 "suggested_actions": alert.analysis.suggested_actions,
+                "report_include_timeline": alert.analysis.report_include_timeline,
+                "report_include_source_comparison": alert.analysis.report_include_source_comparison,
+                "report_include_user_action": alert.analysis.report_include_user_action,
             }
             for alert in status.recent_alerts[:10]
         ],
         "recent_logs": status.recent_logs[:50],
     }
+
+
+def _status_payload(status: RuntimeStatus, config_path: Path | None = None) -> dict[str, Any]:
+    payload = status_to_dict(status)
+    if not config_path:
+        return payload
+    try:
+        payload["ui_debug_mode"] = load_config(config_path).ui.debug_mode
+    except Exception as exc:  # noqa: BLE001 - status should remain available
+        logger.debug("Could not refresh UI debug mode from config: %s", sanitize_for_log(exc))
+    return payload
 
 
 def readiness_to_dict(status: RuntimeStatus) -> dict[str, Any]:
@@ -605,6 +625,9 @@ def _setup_snapshot(
             "output_language": config.app.output_language,
             "alert_mode": config.alerts.default_mode,
             "local_server_url": status.local_server_url,
+        },
+        "ui": {
+            "debug_mode": config.ui.debug_mode,
         },
         "notifications": {
             "fallback_enabled": config.notifications.fallback_enabled,
@@ -1325,24 +1348,24 @@ def _index_html() -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI News Monitor</title>
   <style>
-    :root{color-scheme:light;--bg:#f5f7fa;--panel:#fff;--text:#172033;--muted:#5d697d;--line:#d8e0ea;--blue:#075fb8;--green:#067647;--red:#b42318;--amber:#a15c07}
-    *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;font:14px -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-tap-highlight-color:rgba(7,95,184,.12)}
-    a{color:var(--blue)}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(7,95,184,.35);outline-offset:2px}
+    :root{color-scheme:light;--bg:#eef5f2;--panel:#fbfcfd;--surface:#f7faf9;--text:#172033;--muted:#506176;--line:#d5e1df;--blue:#2563eb;--teal:#0f766e;--green:#067647;--red:#b42318;--amber:#a15c07}
+    *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;font:14px -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;line-height:1.45;background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-tap-highlight-color:rgba(37,99,235,.12)}
+    a{color:var(--blue)}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:2px}
     body,.card,.list,.row,.hint,.value,.badge,pre,code,a,button,details,.safe-long-text,.safe-code-block,.safe-log-block,.diagnostic-row{overflow-wrap: anywhere;word-break: break-word;max-width: 100%}
     .skip-link{position:absolute;left:12px;top:12px;transform:translateY(-140%);background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;z-index:20}.skip-link:focus-visible{transform:none}
     .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
-    aside{border-right:1px solid var(--line);background:rgba(255,255,255,.86);backdrop-filter:saturate(180%) blur(18px);padding:20px;position:sticky;top:0;height:100vh}
+    aside{border-right:1px solid var(--line);background:rgba(247,250,249,.9);backdrop-filter:saturate(180%) blur(18px);padding:20px;position:sticky;top:0;height:100vh}
     main{min-width:0;padding:24px clamp(16px,3vw,36px)}
     h1{font-size:24px;margin:0 0 6px;text-wrap:balance}h2{font-size:18px;margin:0 0 12px}h3{font-size:14px;margin:0 0 8px}.sub{color:var(--muted);margin:0 0 18px}
     .brand{font-weight:700;font-size:17px;margin-bottom:18px}.nav{display:grid;gap:6px}.nav button{width:100%;text-align:left;border:0;background:transparent;color:#263244;border-radius:8px;padding:10px 12px;cursor:pointer;touch-action:manipulation}
-    .nav button:hover,.nav button[aria-selected=true]{background:#dcecff;color:#063f76}.status-pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 9px;background:var(--panel);font-size:12px;color:var(--muted)}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}.label{color:var(--muted);font-size:12px}.value{font-size:18px;font-weight:650;margin-top:6px;word-break:break-word;font-variant-numeric:tabular-nums}
-    .section{display:none}.section.active{display:block}.panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:12px}.list{white-space:pre-wrap;max-height:360px;overflow:auto;word-break:break-word}.table{display:grid;gap:8px}.row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.8fr) minmax(0,2fr);gap:10px;border-bottom:1px solid var(--line);padding:8px 0;align-items:start}.row:last-child{border-bottom:0}.ok{color:var(--green)}.bad{color:var(--red)}.empty{color:var(--muted)}
-    .wizard{border:1px solid #c7d7fe;background:#eef4ff}.steps{margin:0;padding-left:18px}.steps li{margin:6px 0}
-    form{display:grid;gap:14px}.field{display:grid;gap:6px}.field label{font-weight:600}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;color:var(--text);font:inherit}.field textarea{min-height:82px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card-head{display:flex;gap:10px;justify-content:space-between;align-items:start;margin-bottom:10px}.channel-card{display:grid;gap:10px}.channel-meta{display:flex;flex-wrap:wrap;gap:6px}.badge{border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted);background:#fff}.badge.bad{border-color:#f4b7ae;color:var(--red);background:#fff6f4}.badge.ok{border-color:#a9e7ca;color:var(--green);background:#f3fcf7}.diagnostic-box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;background:#fff;padding:10px;white-space:pre-wrap;word-break:break-word}.diagnostic-box.bad{border-left-color:var(--red)}.diagnostic-box.ok{border-left-color:var(--green)}.toast{position:fixed;right:18px;bottom:18px;max-width:min(420px,calc(100vw - 36px));border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px 14px;box-shadow:0 14px 34px rgba(16,24,40,.13);z-index:10}.toast[hidden]{display:none}.small-button{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;cursor:pointer;touch-action:manipulation}.debug-details{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff}.debug-details summary{cursor:pointer;font-weight:650}.safe-code-block,.safe-log-block{white-space:pre-wrap;margin:8px 0 0;font-size:12px;overflow:auto}.safe-long-text{min-width:0}.diagnostic-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.8fr) minmax(0,2fr);gap:10px;border-bottom:1px solid var(--line);padding:8px 0;align-items:start}.diagnostic-row:last-child{border-bottom:0}
-    .actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}.actions button,.actions a{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 12px;cursor:pointer;text-decoration:none;touch-action:manipulation}.actions button:hover,.actions a:hover,.small-button:hover{border-color:var(--blue);color:var(--blue)}
-    .notice{border-left:4px solid var(--amber);background:#fffaf0}.metric-line{font-weight:650;margin-bottom:8px}.event-row{border-bottom:1px solid var(--line);padding:8px 0}.event-row:last-child{border-bottom:0}.compact-kv{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(0,1.2fr);gap:6px 10px}.compact-kv div:nth-child(odd){color:var(--muted)}pre{white-space:pre-wrap;margin:8px 0 0;font-size:12px}
-    @media (max-width:820px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}}
+    .nav button:hover,.nav button[aria-selected=true]{background:#e2f1ee;color:#0f5d57}.status-pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 9px;background:var(--panel);font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0;box-shadow:0 1px 2px rgba(20,32,51,.04)}.label{color:var(--muted);font-size:12px}.value{font-size:18px;font-weight:650;margin-top:6px;word-break:break-word;font-variant-numeric:tabular-nums}
+    .section{display:none}.section.active{display:block}.panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}.feedback-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}.card.wide{grid-column:span 2}.list{white-space:pre-wrap;max-height:420px;overflow:auto;word-break:break-word}.list.tall{min-height:360px;max-height:62vh}.table{display:grid;gap:8px}.row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.8fr) minmax(0,2fr);gap:10px;border-bottom:1px solid var(--line);padding:8px 0;align-items:start}.row:last-child{border-bottom:0}.ok{color:var(--green)}.bad{color:var(--red)}.empty{color:var(--muted)}
+    .wizard{border:1px solid #b9d8d1;background:#e7f3f0}.steps{margin:0;padding-left:18px}.steps li{margin:6px 0}
+    form{display:grid;gap:14px}.field{display:grid;gap:6px}.field label{font-weight:600}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;color:var(--text);font:inherit}.field textarea{min-height:110px;resize:vertical}.hint{color:var(--muted);font-size:12px;line-height:1.45}.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card-head{display:flex;gap:10px;justify-content:space-between;align-items:start;margin-bottom:10px}.channel-card{display:grid;gap:10px}.channel-meta{display:flex;flex-wrap:wrap;gap:6px}.badge{border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted);background:#fff}.badge.bad{border-color:#f4b7ae;color:var(--red);background:#fff6f4}.badge.ok{border-color:#a9e7ca;color:var(--green);background:#f3fcf7}.diagnostic-box{border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;background:#fff;padding:10px;white-space:pre-wrap;word-break:break-word}.diagnostic-box.bad{border-left-color:var(--red)}.diagnostic-box.ok{border-left-color:var(--green)}.toast{position:fixed;right:18px;bottom:18px;max-width:min(680px,calc(100vw - 36px));min-height:72px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:14px 16px;box-shadow:0 18px 42px rgba(20,32,51,.16);z-index:10;white-space:pre-wrap}.toast[hidden]{display:none}.small-button{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;cursor:pointer;touch-action:manipulation}.debug-details{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff}.debug-details summary{cursor:pointer;font-weight:650}.safe-code-block,.safe-log-block{white-space:pre-wrap;margin:8px 0 0;font-size:12px;overflow:auto}.safe-long-text{min-width:0}.diagnostic-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.8fr) minmax(0,2fr);gap:10px;border-bottom:1px solid var(--line);padding:8px 0;align-items:start}.diagnostic-row:last-child{border-bottom:0}
+    .actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}.actions button,.actions a{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 12px;cursor:pointer;text-decoration:none;touch-action:manipulation}.actions button[data-action=start],.actions button[data-action=run_once]{background:var(--blue);border-color:var(--blue);color:#fff}.actions button[data-action=stop]{background:#fff6f4;border-color:#f4b7ae;color:var(--red)}.actions button:hover,.actions a:hover,.small-button:hover{border-color:var(--blue);color:var(--blue)}.actions button[data-action=start]:hover,.actions button[data-action=run_once]:hover{background:#1d4ed8;color:#fff}.actions button[data-action=stop]:hover{border-color:#e4897e;color:#912018}.actions button:disabled{cursor:wait;opacity:.62}
+    .notice{border-left:4px solid var(--amber);background:#fffaf0}.metric-line{font-weight:650;margin-bottom:8px}.event-row{border-bottom:1px solid var(--line);padding:10px 0}.event-row:last-child{border-bottom:0}.compact-kv{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(0,1.2fr);gap:6px 10px}.compact-kv div:nth-child(odd){color:var(--muted)}pre{white-space:pre-wrap;margin:8px 0 0;font-size:12px}
+    @media (max-width:980px){.card.wide{grid-column:auto}}@media (max-width:820px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.row,.diagnostic-row{grid-template-columns:1fr}.list.tall{min-height:260px}}
   </style>
 </head>
 <body>
@@ -1383,13 +1406,13 @@ def _index_html() -> str:
         </ol>
       </div>
       <section class="grid" id="stats" aria-live="polite"></section>
-      <section class="panel-grid">
+      <section class="panel-grid feedback-grid">
         <div class="card"><h2 data-i18n="connection_health">Connection Health</h2><div class="list" id="health">-</div></div>
         <div class="card"><h2 data-i18n="pipeline_funnel">Pipeline Funnel</h2><div class="list" id="pipelineFunnel">-</div></div>
         <div class="card"><h2 data-i18n="notification_health">Notification Health</h2><div class="list" id="notificationSummary">-</div></div>
         <div class="card"><h2 data-i18n="coverage_quality">Coverage Quality</h2><div class="list" id="coverageQuality">-</div></div>
         <div class="card"><h2 data-i18n="intelligence_gaps">Intelligence Gaps</h2><div class="list" id="gapRows">-</div></div>
-        <div class="card"><h2 data-i18n="live_events">Real-time Events</h2><div class="list" id="events" aria-live="polite">Connecting...</div></div>
+        <div class="card wide"><h2 data-i18n="live_events">Real-time Events</h2><div class="list tall" id="events" aria-live="polite">Connecting...</div></div>
       </section>
     </section>
     <section id="sources" class="section" aria-labelledby="sources-title">
@@ -1400,6 +1423,7 @@ def _index_html() -> str:
         <div class="card"><h2 data-i18n="source_packages">Source Packages</h2><div class="table" id="packageRows"></div></div>
         <div class="card"><h2 data-i18n="source_freshness_summary">Source Freshness Summary</h2><div class="list" id="sourceSummary">-</div></div>
         <div class="card"><h2 data-i18n="source_cache_backoff">Source Cache and Backoff</h2><div class="list" id="cacheBackoffSummary">-</div></div>
+        <div class="card"><h2 data-i18n="source_selection">Source Selection</h2><div class="table" id="sourceSelectionRows"></div></div>
         <div class="card"><h2 data-i18n="source_tier_distribution">Source Tier Distribution</h2><div class="list" id="tierRows">-</div></div>
         <div class="card"><h2 data-i18n="top_failing_sources">Top Failing Sources</h2><div class="list" id="topFailingSources">-</div></div>
         <div class="card"><h2 data-i18n="settings.source_library">Source Library</h2><div class="table" id="sourceLibraryCards"></div></div>
@@ -1419,9 +1443,9 @@ def _index_html() -> str:
         <div class="card"><h2 data-i18n="topic_overview">Topic Overview</h2><div class="table" id="topicCards"></div></div>
       </div>
     </section>
-    <section id="alerts" class="section" aria-labelledby="alerts-title"><h1 id="alerts-title" data-i18n="alerts">Alerts</h1><div class="panel-grid"><div class="card"><h2 data-i18n="event_clusters">Event Clusters</h2><div class="list" id="eventRows"></div></div><div class="card"><h2 data-i18n="recent_alerts">Recent Alerts</h2><div class="list" id="alertRows"></div></div><div class="card"><h2 data-i18n="recent_matches">Recent Matches</h2><div class="list" id="matchRows"></div></div></div></section>
-    <section id="diagnostics" class="section" aria-labelledby="diagnostics-title"><h1 id="diagnostics-title" data-i18n="diagnostics">Diagnostics</h1><div class="panel-grid"><div class="card"><h2 data-i18n="runtime">Runtime</h2><div class="list" id="diagnosticsRows"></div></div><div class="card"><h2 data-i18n="errors">Errors</h2><div class="list" id="errorRows"></div></div></div></section>
-    <section id="logs" class="section" aria-labelledby="logs-title"><h1 id="logs-title" data-i18n="logs">Logs</h1><div class="card list" id="logRows"></div></section>
+    <section id="alerts" class="section" aria-labelledby="alerts-title"><h1 id="alerts-title" data-i18n="alerts">Alerts</h1><div class="panel-grid feedback-grid"><div class="card wide"><h2 data-i18n="event_clusters">Event Clusters</h2><div class="list tall" id="eventRows"></div></div><div class="card"><h2 data-i18n="recent_alerts">Recent Alerts</h2><div class="list tall" id="alertRows"></div></div><div class="card"><h2 data-i18n="recent_matches">Recent Matches</h2><div class="list tall" id="matchRows"></div></div></div></section>
+    <section id="diagnostics" class="section" aria-labelledby="diagnostics-title"><h1 id="diagnostics-title" data-i18n="diagnostics">Diagnostics</h1><div class="panel-grid feedback-grid"><div class="card wide"><h2 data-i18n="runtime">Runtime</h2><div class="list tall" id="diagnosticsRows"></div></div><div class="card"><h2 data-i18n="errors">Errors</h2><div class="list tall" id="errorRows"></div></div></div></section>
+    <section id="logs" class="section" aria-labelledby="logs-title"><h1 id="logs-title" data-i18n="logs">Logs</h1><div class="card list tall" id="logRows"></div></section>
   </main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -1436,6 +1460,7 @@ const sourceRows = document.getElementById('sourceRows');
 const packageRows = document.getElementById('packageRows');
 const sourceSummary = document.getElementById('sourceSummary');
 const cacheBackoffSummary = document.getElementById('cacheBackoffSummary');
+const sourceSelectionRows = document.getElementById('sourceSelectionRows');
 const tierRows = document.getElementById('tierRows');
 const topFailingSources = document.getElementById('topFailingSources');
 const sourceLibraryCards = document.getElementById('sourceLibraryCards');
@@ -1456,6 +1481,7 @@ const pipelineFunnel = document.getElementById('pipelineFunnel');
 const notificationSummary = document.getElementById('notificationSummary');
 let setupState = null;
 let currentLang = 'en';
+let debugMode = false;
 let eventItems = [];
 const reliabilityEndpoints = ['/api/readiness','/api/source-health','/api/intelligence-gaps','/api/coverage-quality','/api/source-packages'];
 function esc(value){return String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1481,6 +1507,7 @@ function statusBadge(value, lang){
 }
 function safeJson(value){ try { return JSON.stringify(value || {}, null, 2); } catch(err) { return String(value || '-'); } }
 function detailsBlock(value){
+  if(!debugMode) return '';
   return `<details class="debug-details"><summary>${esc(t('show_details', currentLang))}</summary><button type="button" class="small-button" data-copy="${esc(safeJson(value))}">${esc(t('copy_diagnostics', currentLang))}</button><pre class="safe-code-block">${esc(safeJson(value))}</pre></details>`;
 }
 function kvRows(value){
@@ -1538,9 +1565,17 @@ function renderEventCards(items, lang){
     const latest = formatTime(event.latest_update_time || event.sent_at, lang);
     const articleCount = event.article_count || event.grouped_article_count || 1;
     const summary = event.summary || event.current_status || '-';
-    const timeline = renderTimelinePreview(event.timeline_preview || event.timeline, lang);
     const sources = renderSourceLinks(event.sources || event.source_links, lang);
-    return `<div class="event-row"><strong class="safe-long-text">${esc(event.event_title || event.title || '-')}</strong><br><span class="hint">${esc(t('grouped_articles', lang))}: ${esc(articleCount)} · ${esc(t('latest_update_time', lang))}: ${esc(latest)} · ${esc(t('confidence', lang))}: ${esc(event.confidence ?? '-')}</span><br><span class="safe-long-text">${esc(summary)}</span><br><span class="hint">${esc(t('timeline', lang))}</span><br>${timeline}<br><span class="hint">${esc(t('sources', lang))}</span><br>${sources}<br><span class="hint">${esc(t('relation_reason', lang))}: ${esc(event.relation_reason || '-')}</span>${detailsBlock(event)}</div>`;
+    const verificationStatus = event.verification_status || (event.confidence_score ? 'developing' : '');
+    const confidence = event.confidence_score ?? event.confidence ?? '-';
+    const relevance = event.relevance_score ?? event.score ?? '-';
+    const includeTimeline = event.report_include_timeline !== false;
+    const includeSourceComparison = event.report_include_source_comparison !== false;
+    const timelineSection = includeTimeline ? `<br><span class="hint">${esc(t('timeline', lang))}</span><br>${renderTimelinePreview(event.timeline_preview || event.timeline, lang)}` : '';
+    const sourceComparison = includeSourceComparison ? ((event.source_comparison || []).slice(0, 4).map(item => `${esc(item.source || '-')}: ${esc(item.confidence || '-')} (${esc(item.score ?? '-')})`).join('<br>') || '-') : '';
+    const sourceComparisonSection = includeSourceComparison ? `<br><span class="hint">${esc(t('source_comparison', lang))}</span><br>${sourceComparison}` : '';
+    const badges = `${verificationStatus ? statusBadge(verificationStatus, lang) : ''}<span class="badge">${esc(t('relevance_score', lang))}: ${esc(relevance)}</span><span class="badge">${esc(t('confidence_score', lang))}: ${esc(confidence)}</span>`;
+    return `<div class="event-row"><strong class="safe-long-text">${esc(event.event_title || event.title || '-')}</strong><br><div class="channel-meta">${badges}</div><span class="hint">${esc(t('grouped_articles', lang))}: ${esc(articleCount)} · ${esc(t('latest_update_time', lang))}: ${esc(latest)}</span><br><span class="safe-long-text">${esc(summary)}</span>${timelineSection}${sourceComparisonSection}<br><span class="hint">${esc(t('sources', lang))}</span><br>${sources}<br><span class="hint">${esc(t('relation_reason', lang))}: ${esc(event.relation_reason || '-')}</span>${detailsBlock(event)}</div>`;
   }).join('') || `<span class="empty">${esc(t('empty_event_clusters', lang))}</span>`;
 }
 function renderNotificationSummary(status){
@@ -1552,6 +1587,15 @@ function renderNotificationSummary(status){
     const detail = state.last_error_category || state.last_error_message || state.last_success_time || '-';
     return row(name, health, detail);
   }).join('');
+}
+function renderSourceSelection(items, lang){
+  return (items || []).slice(0, 20).map(item => {
+    const mode = item.auto_selected ? t('auto_selected_source', lang) : t('manual_source', lang);
+    const risk = item.risk ? `<br>${esc(t('risk', lang))}: ${esc(item.risk)}` : '';
+    const priority = item.priority ?? '-';
+    const detail = `${esc(mode)} · ${esc(t('priority', lang))}: ${esc(priority)}<br>${esc(t('selection_reason', lang))}: ${esc(item.reason || '-')}<br>${esc(t('expected_value', lang))}: ${esc(item.expected_value || '-')}${risk}`;
+    return `<div class="diagnostic-row"><strong class="safe-long-text">${esc(item.source || '-')}</strong><span class="safe-long-text">${esc(item.topic || '-')}<br>${statusBadge(item.source_mode || '-', lang)}</span><span class="safe-long-text">${detail}</span></div>`;
+  }).join('') || `<div class="empty">${esc(t('empty_source_selection', lang))}</div>`;
 }
 function renderReadiness(readiness){
   if(!readiness) return '<span class="empty">-</span>';
@@ -1577,6 +1621,7 @@ function applyLocale(lang){
   if(!events.dataset.live){ events.textContent = t('connecting', currentLang); }
 }
 function renderStatus(s){
+  debugMode = s.ui_debug_mode === true;
   const lang = s.output_language === 'zh-CN' ? 'zh-CN' : 'en';
   applyLocale(lang);
   wizard.hidden = setupState ? !setupState.setup_required : Boolean(s.active_topics_count);
@@ -1600,6 +1645,7 @@ function renderStatus(s){
   sourceRows.innerHTML = Object.entries(s.source_states || s.source_health || {}).map(([k,v])=>row(k, v.freshness_state || v.health || v, sourceSummaryLine(k, v))).join('') || `<div class="empty">${esc(t('empty_sources', lang))}</div>`;
   sourceSummary.innerHTML = kvRows(s.source_summary || {});
   cacheBackoffSummary.innerHTML = `<div class="metric-line">${esc(t('cache', lang))}</div>${kvRows(s.source_cache_summary || {})}<div class="metric-line">${esc(t('backoff', lang))}</div>${kvRows(s.source_backoff_summary || {})}`;
+  sourceSelectionRows.innerHTML = renderSourceSelection(s.source_selection_summary || [], lang);
   tierRows.innerHTML = kvRows(s.source_tier_distribution || {});
   topFailingSources.textContent = (s.top_failing_sources || []).map(item=>`${item.source}: ${labelFor(item.freshness_state, lang)} (${item.failure_count}) ${item.last_error_category || ''}`).join('\\n') || t('empty_errors', lang);
   topicSummary.textContent = `${s.active_topics_count || 0} ${t('active_topics_count', lang)}`;
@@ -1609,9 +1655,11 @@ function renderStatus(s){
   diagnosticsRows.innerHTML = kvRows({server:s.local_server_url,state:s.state,llm_health:s.llm_health,last_fetch_time:formatTime(s.last_fetch_time, lang),last_llm_analysis_time:formatTime(s.last_llm_analysis_time, lang),last_alert_sent_time:formatTime(s.last_alert_sent_time, lang)}) + detailsBlock({coverage:s.coverage_quality,endpoints:reliabilityEndpoints,pipeline:s.pipeline_funnel});
   errorRows.textContent = s.error_message || t('empty_errors', lang);
   logRows.textContent = (s.recent_logs || []).join('\\n') || t('empty_logs', lang);
+  if(events.dataset.live){ renderEvents(); }
 }
 function renderSetup(setup){
   setupState = setup;
+  debugMode = setup.ui?.debug_mode === true;
   const lang = setup.app?.output_language === 'zh-CN' ? 'zh-CN' : 'en';
   applyLocale(lang);
   wizard.hidden = !setup.setup_required;
@@ -1678,7 +1726,7 @@ function eventSummary(name, payload){
   if(name === 'source_fetch') return `${name} · ${payload.source || '-'} · ${payload.ok ? t('ok', currentLang) : t('failed', currentLang)}${payload.category ? ' · ' + payload.category : ''}`;
   if(name === 'cycle_completed') return `${name} · ${payload.pipeline || '-'} · ${labelFor(payload.result || '-', currentLang)}`;
   if(name === 'notification_result') return `${name} · ${payload.notifier || '-'} · ${payload.ok ? t('ok', currentLang) : t('failed', currentLang)}`;
-  if(name === 'alert_sent') return `${name} · ${payload.topic || '-'} · ${payload.relevance_score || '-'}`;
+  if(name === 'alert_sent') return `${name} · ${payload.topic || '-'} · ${payload.relevance_score || '-'} · ${labelFor(payload.verification_status || '-', currentLang)}`;
   if(name === 'candidate_ranked') return `${name} · ${payload.source || '-'} · ${payload.ranking_score || '-'}`;
   if(name === 'status') return `${name} · ${labelFor(payload.status || '-', currentLang)}`;
   return name;

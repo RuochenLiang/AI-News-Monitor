@@ -65,6 +65,53 @@ def test_topic_validation_rejects_bad_url():
         validate_topic(topic)
 
 
+def test_next_version_topic_schema_parses_and_keeps_old_defaults():
+    config = parse_config(
+        {
+            "topics": [
+                {
+                    "id": "geopolitics_example",
+                    "name": "Geopolitics Example",
+                    "enabled": True,
+                    "user_prompt": "Track US-China technology policy.",
+                    "keywords": ["export controls"],
+                    "language": "en",
+                    "source_mode": "hybrid",
+                    "domains": ["politics", "public_policy"],
+                    "preferred_regions": ["US", "China"],
+                    "social_enabled": True,
+                    "notification_threshold": {
+                        "min_relevance_score": 0.75,
+                        "min_confidence_score": 0.7,
+                    },
+                    "report_style": {
+                        "include_timeline": True,
+                        "include_source_comparison": True,
+                        "include_user_action": False,
+                    },
+                },
+                {"name": "Old", "enabled": True, "prompt": "P", "keywords": ["k"]},
+            ]
+        }
+    )
+
+    topic = config.topics[0]
+    assert topic.id == "geopolitics_example"
+    assert topic.prompt == "Track US-China technology policy."
+    assert topic.output_language == "en"
+    assert topic.source_mode == "hybrid"
+    assert topic.domains == ["politics", "public_policy"]
+    assert topic.preferred_regions == ["US", "China"]
+    assert topic.social_enabled is True
+    assert topic.min_relevance_score == 75
+    assert topic.min_confidence_score == 0.7
+    assert topic.report_include_user_action is False
+
+    old_topic = config.topics[1]
+    assert old_topic.source_mode == "manual"
+    assert old_topic.social_enabled is False
+
+
 def test_secret_masking_and_log_sanitization(monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "sk-secret-value")
     assert mask_secret("abcdefghi").startswith("ab")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -7,6 +8,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QPushButton,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -30,16 +32,26 @@ class DashboardPage(QWidget):
         self.stat_titles: dict[str, QLabel] = {}
         self.alert_list = QListWidget()
         self.log_list = QListWidget()
+        self.health_list = QListWidget()
+        self.gaps_list = QListWidget()
+
+        for list_widget in (self.alert_list, self.log_list, self.health_list, self.gaps_list):
+            list_widget.setWordWrap(True)
+            list_widget.setAlternatingRowColors(True)
+            list_widget.setMinimumHeight(260)
 
         layout = QVBoxLayout(self)
+        layout.setSpacing(14)
         self.title_label = QLabel(text("app_title", self.language))
         self.title_label.setObjectName("PageTitle")
         layout.addWidget(self.title_label)
         self.live_banner = QLabel(text("live_unconnected", self.language))
         self.live_banner.setObjectName("LiveBanner")
+        self.live_banner.setWordWrap(True)
         layout.addWidget(self.live_banner)
 
         grid = QGridLayout()
+        grid.setSpacing(12)
         stats = [
             ("state", text("state", self.language)),
             ("active_topics_count", text("active_topics_count", self.language)),
@@ -61,53 +73,70 @@ class DashboardPage(QWidget):
             frame = QFrame()
             frame.setObjectName("StatCard")
             card_layout = QVBoxLayout(frame)
+            card_layout.setContentsMargins(12, 10, 12, 12)
             label = QLabel(label_text)
+            label.setObjectName("StatLabel")
+            label.setWordWrap(True)
             value = QLabel("-")
             value.setObjectName("StatValue")
+            value.setWordWrap(True)
             card_layout.addWidget(label)
             card_layout.addWidget(value)
             self.stat_titles[key] = label
             self.labels[key] = value
-            grid.addWidget(frame, index // 3, index % 3)
+            grid.addWidget(frame, index // 5, index % 5)
         layout.addLayout(grid)
 
         buttons = QHBoxLayout()
+        self.start_button.setObjectName("PrimaryButton")
+        self.test_notification_button.setObjectName("SecondaryButton")
+        self.pause_button.setObjectName("SecondaryButton")
+        self.resume_button.setObjectName("SecondaryButton")
+        self.stop_button.setObjectName("DangerButton")
         for button in (
             self.start_button,
+            self.test_notification_button,
             self.pause_button,
             self.resume_button,
             self.stop_button,
-            self.test_notification_button,
         ):
             buttons.addWidget(button)
         buttons.addStretch(1)
         layout.addLayout(buttons)
 
-        body = QHBoxLayout()
-        alerts_panel = QVBoxLayout()
-        self.recent_alerts_label = QLabel(text("recent_alerts", self.language))
-        alerts_panel.addWidget(self.recent_alerts_label)
-        alerts_panel.addWidget(self.alert_list)
-        health_panel = QVBoxLayout()
-        self.health_label = QLabel(text("connection_health", self.language))
-        health_panel.addWidget(self.health_label)
-        self.health_list = QListWidget()
-        health_panel.addWidget(self.health_list)
-        gaps_panel = QVBoxLayout()
-        self.gaps_label = QLabel(text("intelligence_gaps", self.language))
-        gaps_panel.addWidget(self.gaps_label)
-        self.gaps_list = QListWidget()
-        gaps_panel.addWidget(self.gaps_list)
-        logs_panel = QVBoxLayout()
-        self.recent_logs_label = QLabel(text("recent_logs", self.language))
-        logs_panel.addWidget(self.recent_logs_label)
-        logs_panel.addWidget(self.log_list)
-        body.addLayout(alerts_panel, 1)
-        body.addLayout(health_panel, 1)
-        body.addLayout(gaps_panel, 1)
-        body.addLayout(logs_panel, 1)
-        layout.addLayout(body, 1)
+        body = QSplitter(Qt.Horizontal)
+        body.setChildrenCollapsible(False)
+        body.addWidget(self._feedback_panel("recent_alerts", self.alert_list))
+        body.addWidget(self._feedback_panel("connection_health", self.health_list))
+        body.addWidget(self._feedback_panel("intelligence_gaps", self.gaps_list))
+        body.addWidget(self._feedback_panel("recent_logs", self.log_list))
+        body.setStretchFactor(0, 2)
+        body.setStretchFactor(1, 1)
+        body.setStretchFactor(2, 1)
+        body.setStretchFactor(3, 2)
+        layout.addWidget(body, 2)
         self.apply_language(self.language)
+
+    def _feedback_panel(self, label_key: str, list_widget: QListWidget) -> QWidget:
+        panel = QWidget()
+        panel.setObjectName("FeedbackPanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(12, 12, 12, 12)
+        panel_layout.setSpacing(8)
+        label = QLabel(text(label_key, self.language))
+        label.setObjectName("PanelTitle")
+        label.setWordWrap(True)
+        panel_layout.addWidget(label)
+        panel_layout.addWidget(list_widget, 1)
+        if label_key == "recent_alerts":
+            self.recent_alerts_label = label
+        elif label_key == "connection_health":
+            self.health_label = label
+        elif label_key == "intelligence_gaps":
+            self.gaps_label = label
+        elif label_key == "recent_logs":
+            self.recent_logs_label = label
+        return panel
 
     def apply_language(self, language: str) -> None:
         self.language = language
@@ -147,7 +176,7 @@ class DashboardPage(QWidget):
         for key, value in values.items():
             self.labels[key].setText(value)
         if status.local_server_url:
-            self.live_banner.setText(f"Live service: {status.local_server_url}/events")
+            self.live_banner.setText(text("live_service_url", self.language, url=f"{status.local_server_url}/events"))
         else:
             self.live_banner.setText(text("live_off", self.language))
         self.alert_list.clear()

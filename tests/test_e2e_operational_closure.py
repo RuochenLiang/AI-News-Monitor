@@ -167,6 +167,11 @@ def test_run_cycle_pipeline_funnel_counts_and_serializes_summary(tmp_path):
     assert "Fetched 1 -> Dedupe 1 -> Candidates 1 -> Events 1 -> LLM 1 -> Alerts 1" in funnel["concise_summary"]
     assert "{" not in funnel["concise_summary"]
     assert serialized["pipeline_funnel"]["concise_summary"] == funnel["concise_summary"]
+    assert serialized["source_selection_summary"][0]["reason"] == "manual configured source"
+    alert_payload = serialized["recent_alerts"][0]
+    assert alert_payload["verification_status"] in {"developing", "verified"}
+    assert alert_payload["confidence_score"] > 0
+    assert alert_payload["source_comparison"][0]["source"] == "Static Source"
 
 
 def test_zero_alert_below_threshold_explains_candidate_and_keeps_production_threshold(tmp_path):

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLineEdit, QMessageBox, QWidget
+from PySide6.QtWidgets import QLabel, QLayout, QLineEdit, QMessageBox, QWidget
 
 MESSAGE_BOX_STYLE = """
 QMessageBox {
     background-color: #ffffff;
     color: #172033;
+    min-width: 560px;
+    min-height: 240px;
 }
 QMessageBox QLabel {
     color: #172033;
@@ -51,4 +53,11 @@ def _show_message(parent: QWidget, title: str, message: str, icon: QMessageBox.I
     box.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
     box.setStandardButtons(QMessageBox.Ok)
     box.setStyleSheet(MESSAGE_BOX_STYLE)
+    box.setMinimumSize(600, 280)
+    if box.layout():
+        box.layout().setSizeConstraint(QLayout.SetNoConstraint)
+    for label in box.findChildren(QLabel):
+        label.setWordWrap(True)
+        label.setMinimumWidth(500)
+    box.resize(640, 320)
     box.exec()

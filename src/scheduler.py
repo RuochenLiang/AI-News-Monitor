@@ -172,6 +172,7 @@ class MonitorWorker:
             return
         self.status.output_language = config.app.output_language
         self.status.alert_mode = config.alerts.default_mode
+        self.status.ui_debug_mode = config.ui.debug_mode
         self.status.source_packages_enabled = list(config.sources.enabled_packages)
         if self._event_server:
             return

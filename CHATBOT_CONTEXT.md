@@ -1,10 +1,10 @@
 # Chatbot Context for AI News Monitor
 
-Generated: 2026-05-26 after event-synthesis and timeline verification
+Generated: 2026-05-26 after event-synthesis verification and prompt 15 archival
 
 ## Read This First
 
-This file is the fastest entry point for another chatbot or coding agent. It summarizes the current project state, the release-readiness work already completed, the files to inspect first, and the residual manual checks before a public GitHub release.
+This file is the fastest entry point for another chatbot or coding agent. It summarizes the current project state, the release-readiness work already completed, the files to inspect first, the current next-version prompt, and the residual manual checks before a public GitHub release.
 
 The project folder is a git repository in this local workspace, and the working tree is intentionally dirty with event-synthesis plus earlier readiness/source changes. Review the diff before committing or pushing.
 
@@ -19,6 +19,12 @@ http://127.0.0.1:8765
 It monitors public Chinese and English information sources, ranks source-grounded articles against user topics, uses the user's OpenAI-compatible LLM for translation, summaries, relevance checks, and optional analysis, then sends phone-friendly alerts through configured notification channels.
 
 The app is not a trading bot, investment adviser, broker integration, or stock recommender.
+
+## Current Next-Version Prompt
+
+Treat `docs/dev-history/prompts/15-intelligent-source-discovery-verification-social-deepseek.md` as the current authoritative next-version prompt. It requests intelligent source discovery with manual/auto/hybrid modes, source credibility and claim verification, multi-source event reports, optional X.com signal ingestion, DeepSeek provider support, generalized topics, concise browser report cards, compatibility migration, tests, and docs.
+
+The prompt-15 foundation pass is implemented: source-mode config compatibility, source discovery/ranking, desktop source-selection preview, verification and notification gating models, event aggregation namespace, OpenAI/DeepSeek provider routing with retry backoff, disabled-by-default X.com ingestion through official recent-search API scaffolding with an in-session cost guard, desktop topic-schema editing, desktop OpenAI/DeepSeek/X configuration controls, per-topic report-style enforcement, browser confidence/status fields, contradiction surfacing, doctor checks, docs, and focused tests. Full prompt-15 completion still requires richer source-management controls beyond the new provider/social controls, broader bilingual docs, and live credential-backed validation.
 
 ## Latest Completed Work
 
@@ -41,6 +47,14 @@ The app is not a trading bot, investment adviser, broker integration, or stock r
 - `.gitignore`, tests, and docs now cover public upload safety, obvious secret scans, runtime artifact scans, workflow checks, root prompt cleanup, and GPL-3.0-only release metadata.
 - Historical development prompts were moved out of the root into `docs/dev-history/prompts/`.
 - Prompt archive links now point at standalone numbered files, with `docs/dev-history/prompt.md` retained as a consolidated reference.
+- Prompt 15 is archived and linked as `docs/dev-history/prompts/15-intelligent-source-discovery-verification-social-deepseek.md`.
+- Source discovery/ranking, verification gate, DeepSeek routing, X.com source ingestion, contradiction surfacing, doctor checks, and browser report status/confidence fields are now covered by focused tests.
+- Desktop topic editing now covers prompt-15 fields such as source mode, domains, preferred regions, social enablement, confidence threshold, and report-style flags.
+- Desktop topic preview now shows manual and auto-selected sources with reason, expected value, risk, and priority before a monitor cycle runs.
+- Desktop settings now cover OpenAI/DeepSeek primary/fallback routing, local provider keys, DeepSeek retry fields, and X.com recent-search/cost-guard settings.
+- Per-topic report-style flags now shape LLM prompt preferences and final alerts for timeline, source comparison, and suggested-action sections.
+- X.com is only selected for eligible auto/hybrid social topics and enforces its configured in-session daily read-post guard.
+- OpenAI-compatible LLM calls honor configured retry backoff before provider fallback.
 - GDELT multi-keyword OR queries are wrapped in parentheses for safer production query syntax.
 - E2E Test Mode can be rerun without stored-alert dedupe blocking the controlled second test alert.
 - `CURRENT_RUNTIME_STATUS.json` was treated as local runtime data and removed from the public-upload candidate.
@@ -93,13 +107,15 @@ Use the desktop app for credentials and setup. Use the browser console for live 
 
 ## Latest Verification Snapshot
 
-Latest local verification after the event-synthesis pass:
+Latest local verification after the prompt 15 foundation pass:
 
-- `.venv/bin/python -m ruff check .`: passed.
-- `.venv/bin/python -m black --check .`: passed; `72 files would be left unchanged`.
-- `.venv/bin/python -m pytest -q`: `113 passed`, `14 skipped`.
-- `.venv/bin/python -m compileall src tests`: passed.
-- `.venv/bin/python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False); print('config ok')"`: `config ok`.
+- `python -m ruff check .`: passed.
+- `python -m black --check .`: passed; `102 files would be left unchanged`.
+- `python -m pytest -q`: `140 passed`, `14 skipped`.
+- `python -m compileall ai_news_monitor src tests`: passed.
+- `python -c "from pathlib import Path; from src.config import load_config; load_config(Path('config.example.yaml'), load_env=False); print('config ok')"`: `config ok`.
+- `git diff --check`: passed.
+- `python -m ai_news_monitor doctor --check-llm --config config.example.yaml --json`: command path works and reports the expected missing placeholder API key.
 - Isolated E2E Test Mode with all notifiers disabled produced one event-level alert: `Fetched 1 -> Dedupe 1 -> Candidates 1 -> Events 1 -> LLM 1 -> Alerts 1`.
 - Isolated real-source Run Once against TechCrunch AI RSS with all notifiers disabled produced event-cluster diagnostics: `Fetched 5 -> Dedupe 5 -> Candidates 5 -> Events 5 -> LLM 5 -> Alerts 0`. Alerts were `0` because no LLM API key was provided in the isolated temp runtime.
 

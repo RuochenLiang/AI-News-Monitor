@@ -65,3 +65,50 @@ def test_event_notification_includes_timeline_source_links_and_group_count():
     assert "https://trade.example/reaction" in body
     assert "Why these articles are related:" in body
     assert "{" not in body
+
+
+def test_event_notification_respects_topic_report_style_flags():
+    article = Article(
+        title="Official policy notice",
+        url="https://official.example/notice",
+        source="Official Source",
+        published_at=datetime(2026, 5, 25, tzinfo=UTC),
+        snippet="Official notice published.",
+        language="en",
+        source_role="official",
+    )
+    topic = TopicConfig("Policy", True, "Track policy.", ["policy"])
+    cluster = cluster_event_articles([article], topic)[0]
+    analysis = LLMAnalysis(
+        relevance_score=95,
+        is_actionable_alert=True,
+        event_type="policy",
+        summary="Official policy notice.",
+        why_it_matters="It may affect compliance.",
+        market_watch_suggestions=[],
+        bullish_path="N/A",
+        bearish_path="N/A",
+        risk_notes="N/A",
+        uncertainty_notes="Details may change.",
+        source_reliability="high",
+        recommended_user_action="research_further",
+        notification_title="Policy notice",
+        event_title="Policy notice",
+        event_summary="Official policy notice.",
+        current_status="Published.",
+        timeline=cluster.timeline,
+        key_facts=["Notice was published."],
+        source_links=source_links_from_articles(cluster.articles),
+        relation_reason=cluster.relation_reason,
+        uncertainties=["Implementation details may change."],
+        suggested_actions=["Monitor official updates."],
+        report_include_timeline=False,
+        report_include_user_action=False,
+    )
+    alert = Alert("Policy", cluster.primary_article, analysis, datetime.now(UTC), event_cluster=cluster)
+
+    body = format_alert_text(alert, "en")
+
+    assert "Timeline:" not in body
+    assert "Suggested follow-up:" not in body
+    assert "https://official.example/notice" in body
