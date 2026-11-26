@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -38,8 +39,15 @@ class TopicsPage(QWidget):
         self.config = load_config(config_path)
         self.current_index = -1
         self.language = self.config.app.output_language
+        self._loading = False
+        self._dirty = False
 
         self.topic_list = QListWidget()
+        self.topic_search = QLineEdit()
+        self.topic_search.setPlaceholderText(text("topic_search_placeholder", self.language))
+        self.enabled_filter = QCheckBox(text("topic_enabled_only", self.language))
+        self.topic_list_summary = QLabel()
+        self.editor_status = QLabel()
         self.new_button = QPushButton(text("new", self.language))
         self.save_button = QPushButton(text("save", self.language))
         self.delete_button = QPushButton(text("delete", self.language))
@@ -107,7 +115,12 @@ class TopicsPage(QWidget):
         left.setMinimumWidth(0)
         left.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.addWidget(self.topic_search)
+        left_layout.addWidget(self.enabled_filter)
         left_layout.addWidget(self.topic_list)
+        self.topic_list_summary.setObjectName("StatLabel")
+        left_layout.addWidget(self.topic_list_summary)
         left_buttons = QHBoxLayout()
         for button in (self.new_button, self.delete_button, self.toggle_button):
             left_buttons.addWidget(button)
@@ -125,6 +138,8 @@ class TopicsPage(QWidget):
         self.topic_tabs.addTab(self._scroll_tab(self._report_form()), text("topic_tab_report", self.language))
         right_layout.addWidget(self.topic_tabs, 1)
         footer = QHBoxLayout()
+        self.editor_status.setObjectName("StatLabel")
+        footer.addWidget(self.editor_status, 1)
         footer.addStretch(1)
         self.save_button.setObjectName("PrimaryButton")
         footer.addWidget(self.save_button)
@@ -205,29 +220,137 @@ class TopicsPage(QWidget):
 
     def _connect(self) -> None:
         self.topic_list.currentRowChanged.connect(self._load_selected)
+        self.topic_search.textChanged.connect(
+            lambda _value: self._render_topic_list(self.current_index, load_selection=False)
+        )
+        self.enabled_filter.toggled.connect(
+            lambda _checked: self._render_topic_list(self.current_index, load_selection=False)
+        )
         self.new_button.clicked.connect(self._new_topic)
         self.save_button.clicked.connect(self._save_current)
         self.preview_sources_button.clicked.connect(self._preview_source_selection)
         self.delete_button.clicked.connect(self._delete_current)
         self.toggle_button.clicked.connect(self._toggle_current)
+        self._connect_dirty_tracking()
 
-    def reload(self) -> None:
+    def _connect_dirty_tracking(self) -> None:
+        for field in (self.name, self.topic_id, self.output_language):
+            field.textChanged.connect(self._mark_dirty)
+        for editor in (
+            self.prompt,
+            self.keywords,
+            self.related_stocks,
+            self.domains,
+            self.preferred_regions,
+            self.official_urls,
+        ):
+            editor.textChanged.connect(self._mark_dirty)
+        for checkbox in (
+            self.enabled,
+            self.broad_search,
+            self.social_enabled,
+            self.include_timeline,
+            self.include_source_comparison,
+            self.include_user_action,
+        ):
+            checkbox.toggled.connect(self._mark_dirty)
+        self.source_mode.currentTextChanged.connect(self._mark_dirty)
+        self.threshold.valueChanged.connect(self._mark_dirty)
+        self.confidence_threshold.valueChanged.connect(self._mark_dirty)
+        self.poll_interval.valueChanged.connect(self._mark_dirty)
+        self.cooldown.valueChanged.connect(self._mark_dirty)
+
+    def reload(self, select_index: int | None = None) -> None:
         self.config = load_config(self.config_path)
-        self.topic_list.clear()
-        for topic in self.config.topics:
-            prefix = "*" if topic.enabled else "-"
-            self.topic_list.addItem(f"{prefix} {topic.name}")
         if self.config.topics:
-            self.topic_list.setCurrentRow(0)
-            self._load_selected(0)
+            self._render_topic_list(0 if select_index is None else select_index)
         else:
             self._new_topic()
 
-    def _load_selected(self, index: int) -> None:
-        self.current_index = index
-        if index < 0 or index >= len(self.config.topics):
+    def _render_topic_list(self, select_index: int | None = None, *, load_selection: bool = True) -> None:
+        selected_index = self.current_index if select_index is None else select_index
+        visible_indexes: list[int] = []
+        self.topic_list.blockSignals(True)
+        self.topic_list.clear()
+        for index, topic in enumerate(self.config.topics):
+            if not self._topic_matches_filter(topic):
+                continue
+            item = QListWidgetItem(self._topic_item_text(topic))
+            item.setData(Qt.UserRole, index)
+            item.setToolTip(topic.prompt)
+            self.topic_list.addItem(item)
+            visible_indexes.append(index)
+        self.topic_list.blockSignals(False)
+
+        if selected_index in visible_indexes:
+            row = visible_indexes.index(selected_index)
+            if load_selection:
+                self.topic_list.setCurrentRow(row)
+            else:
+                self.topic_list.blockSignals(True)
+                self.topic_list.setCurrentRow(row)
+                self.topic_list.blockSignals(False)
+        elif visible_indexes and not (selected_index is not None and 0 <= selected_index < len(self.config.topics)):
+            if load_selection:
+                self.topic_list.setCurrentRow(0)
+            else:
+                self.topic_list.blockSignals(True)
+                self.topic_list.clearSelection()
+                self.topic_list.blockSignals(False)
+        else:
+            self.topic_list.blockSignals(True)
+            self.topic_list.clearSelection()
+            self.topic_list.blockSignals(False)
+            if selected_index is not None and 0 <= selected_index < len(self.config.topics):
+                self.current_index = selected_index
+            self._update_controls()
+        self._update_list_summary(len(visible_indexes))
+        if not load_selection:
+            self._update_controls()
+
+    def _topic_matches_filter(self, topic: TopicConfig) -> bool:
+        if self.enabled_filter.isChecked() and not topic.enabled:
+            return False
+        query = self.topic_search.text().strip().casefold()
+        if not query:
+            return True
+        haystack = " ".join(
+            [
+                topic.name,
+                topic.id or "",
+                topic.prompt,
+                " ".join(topic.keywords),
+                " ".join(topic.domains),
+                " ".join(topic.preferred_regions),
+            ]
+        ).casefold()
+        return query in haystack
+
+    def _topic_item_text(self, topic: TopicConfig) -> str:
+        status = "●" if topic.enabled else "○"
+        details = [
+            topic.id or text("topic_no_id", self.language),
+            topic.source_mode,
+            text("topic_keyword_count", self.language, count=len(topic.keywords)),
+        ]
+        return f"{status} {topic.name}\n{' · '.join(details)}"
+
+    def _load_selected(self, row: int) -> None:
+        item = self.topic_list.item(row) if row >= 0 else None
+        index = item.data(Qt.UserRole) if item else -1
+        target_index = int(index) if isinstance(index, int) else -1
+        if target_index < 0 or target_index >= len(self.config.topics):
+            self._update_controls()
             return
+        if target_index != self.current_index and not self._confirm_navigation():
+            self._select_list_index(self.current_index)
+            return
+        self._load_topic_at_index(target_index)
+
+    def _load_topic_at_index(self, index: int) -> None:
+        self.current_index = index
         topic = self.config.topics[index]
+        self._loading = True
         self.name.setText(topic.name)
         self.topic_id.setText(topic.id or "")
         self.enabled.setChecked(topic.enabled)
@@ -249,9 +372,17 @@ class TopicsPage(QWidget):
         self.include_source_comparison.setChecked(topic.report_include_source_comparison)
         self.include_user_action.setChecked(topic.report_include_user_action)
         self.source_preview.clear()
+        self._loading = False
+        self._set_dirty(False)
 
     def _new_topic(self) -> None:
+        if not self._confirm_navigation():
+            return
+        self.topic_list.blockSignals(True)
+        self.topic_list.clearSelection()
+        self.topic_list.blockSignals(False)
         self.current_index = -1
+        self._loading = True
         self.name.clear()
         self.topic_id.clear()
         self.enabled.setChecked(True)
@@ -273,23 +404,34 @@ class TopicsPage(QWidget):
         self.include_source_comparison.setChecked(True)
         self.include_user_action.setChecked(True)
         self.source_preview.clear()
+        self._loading = False
+        self._update_list_summary()
+        self._set_dirty(True)
 
-    def _save_current(self) -> None:
+    def _save_current(self, silent: bool = False) -> bool:
         try:
             topic = self._topic_from_form()
             validate_topic(topic)
             if self.current_index < 0:
+                target_index = len(self.config.topics)
                 self.config.topics.append(topic)
             else:
+                target_index = self.current_index
                 self.config.topics[self.current_index] = topic
             save_config(self.config, self.config_path)
-            show_info(self, text("saved_title", self.language), text("topic_saved_message", self.language))
-            self.reload()
+            self._set_dirty(False)
+            if not silent:
+                show_info(self, text("saved_title", self.language), text("topic_saved_message", self.language))
+            self.reload(target_index)
+            return True
         except ConfigError as exc:
             show_error(self, text("topic_invalid_title", self.language), str(exc))
+            return False
 
     def _delete_current(self) -> None:
         if self.current_index < 0 or self.current_index >= len(self.config.topics):
+            return
+        if not self._confirm_navigation():
             return
         answer = QMessageBox.question(
             self,
@@ -298,19 +440,29 @@ class TopicsPage(QWidget):
         )
         if answer == QMessageBox.Yes:
             del self.config.topics[self.current_index]
+            next_index = min(self.current_index, len(self.config.topics) - 1)
             save_config(self.config, self.config_path)
-            self.reload()
+            self._set_dirty(False)
+            self.reload(next_index if next_index >= 0 else None)
 
     def _toggle_current(self) -> None:
         if self.current_index < 0 or self.current_index >= len(self.config.topics):
             return
+        if not self._confirm_navigation():
+            return
         self.config.topics[self.current_index].enabled = not self.config.topics[self.current_index].enabled
+        self._loading = True
+        self.enabled.setChecked(self.config.topics[self.current_index].enabled)
+        self._loading = False
         save_config(self.config, self.config_path)
-        self.reload()
+        self._set_dirty(False)
+        self.reload(self.current_index)
 
     def apply_language(self, language: str) -> None:
         self.language = language
         self.title_label.setText(text("topics_title", language))
+        self.topic_search.setPlaceholderText(text("topic_search_placeholder", language))
+        self.enabled_filter.setText(text("topic_enabled_only", language))
         self.new_button.setText(text("new", language))
         self.save_button.setText(text("save", language))
         self.delete_button.setText(text("delete", language))
@@ -330,6 +482,8 @@ class TopicsPage(QWidget):
         self.cooldown.setSpecialValueText(text("none", language))
         for key, label in self.row_labels.items():
             label.setText(text(key, language))
+        self._render_topic_list(self.current_index, load_selection=False)
+        self._update_controls()
 
     def _row_label(self, key: str) -> QLabel:
         label = QLabel(text(key, self.language))
@@ -359,6 +513,68 @@ class TopicsPage(QWidget):
             report_include_source_comparison=self.include_source_comparison.isChecked(),
             report_include_user_action=self.include_user_action.isChecked(),
         )
+
+    def _mark_dirty(self, *_args) -> None:
+        if self._loading:
+            return
+        self._set_dirty(True)
+
+    def _set_dirty(self, dirty: bool) -> None:
+        self._dirty = dirty
+        self._update_controls()
+
+    def _confirm_navigation(self) -> bool:
+        if not self._dirty:
+            return True
+        answer = QMessageBox.warning(
+            self,
+            text("topic_unsaved_title", self.language),
+            text("topic_unsaved_prompt", self.language),
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save,
+        )
+        if answer == QMessageBox.Save:
+            return self._save_current(silent=True)
+        if answer == QMessageBox.Discard:
+            self._set_dirty(False)
+            return True
+        return False
+
+    def _select_list_index(self, index: int) -> None:
+        self.topic_list.blockSignals(True)
+        try:
+            for row in range(self.topic_list.count()):
+                item = self.topic_list.item(row)
+                if item and item.data(Qt.UserRole) == index:
+                    self.topic_list.setCurrentRow(row)
+                    break
+            else:
+                self.topic_list.clearSelection()
+        finally:
+            self.topic_list.blockSignals(False)
+
+    def _update_list_summary(self, visible_count: int | None = None) -> None:
+        total = len(self.config.topics)
+        active = sum(1 for topic in self.config.topics if topic.enabled)
+        shown = self.topic_list.count() if visible_count is None else visible_count
+        self.topic_list_summary.setText(
+            text("topic_list_summary", self.language, shown=shown, active=active, total=total)
+        )
+
+    def _update_controls(self) -> None:
+        has_saved_topic = 0 <= self.current_index < len(self.config.topics)
+        self.delete_button.setEnabled(has_saved_topic)
+        self.toggle_button.setEnabled(has_saved_topic)
+        self.preview_sources_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        if has_saved_topic:
+            topic = self.config.topics[self.current_index]
+            key = "topic_unsaved_changes" if self._dirty else "topic_editing_existing"
+            display_name = self.name.text().strip() if self._dirty else topic.name
+            self.editor_status.setText(text(key, self.language, name=display_name or topic.name))
+        else:
+            key = "topic_unsaved_changes" if self._dirty else "topic_new_draft"
+            self.editor_status.setText(text(key, self.language, name=self.name.text().strip() or text("topic_new_draft", self.language)))
 
     def _preview_source_selection(self) -> None:
         try:

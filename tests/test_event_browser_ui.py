@@ -45,12 +45,28 @@ def test_source_package_rows_use_dedicated_typography():
     assert ".package-title{display:block;font:inherit;font-weight:650" in html
     assert ".package-detail{font-size:13px;line-height:1.5" in html
     assert ".package-warning{color:var(--amber)}" in html
-    assert ".row,.diagnostic-row,.package-row{grid-template-columns:1fr}" in html
+    assert ".row,.diagnostic-row,.package-row,.source-health-row{grid-template-columns:1fr}" in html
     assert 'class="package-row"' in html
     assert 'class="package-title safe-long-text"' in html
     assert 'class="package-detail safe-long-text"' in html
     assert "statusBadge(pkg.enabled ? 'enabled' : 'disabled', lang)" in html
     assert 'class="small-button package-action"' in html
+
+
+def test_source_health_rows_use_dedicated_typography():
+    html = _index_html()
+
+    assert 'class="table source-health-table" id="sourceRows"' in html
+    assert ".source-health-row{display:grid" in html
+    assert ".source-health-name{min-width:0;font-weight:650;line-height:1.35" in html
+    assert ".source-health-state{white-space:nowrap;line-height:1.25}" in html
+    assert ".source-health-detail{min-width:0;color:var(--muted);font-size:13px;line-height:1.45" in html
+    assert ".source-health-state{white-space:normal}" in html
+    assert "function renderSourceHealthRows(states, lang)" in html
+    assert "normalizeLegacySourceHealth(name, state)" in html
+    assert "function effectiveSourceHealthStates(status)" in html
+    assert "return {...(status.source_health || {}), ...(status.source_states || {})}" in html
+    assert "sourceRows.innerHTML = renderSourceHealthRows(effectiveSourceHealthStates(s), lang)" in html
 
 
 def test_browser_language_refresh_uses_live_config_and_retranslated_events(tmp_path):

@@ -103,6 +103,18 @@ def test_desktop_sources_keep_window_adaptation_hooks():
     assert "self.text.setMinimumHeight(220)" in logs
 
 
+def test_topics_page_keeps_operational_editing_hooks():
+    topics = (ROOT / "src" / "ui" / "topics_page.py").read_text(encoding="utf-8")
+
+    assert "self.topic_search = QLineEdit()" in topics
+    assert "self.enabled_filter = QCheckBox" in topics
+    assert "def _confirm_navigation" in topics
+    assert "QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel" in topics
+    assert "def _render_topic_list" in topics
+    assert "item.setData(Qt.UserRole, index)" in topics
+    assert "self.reload(target_index)" in topics
+
+
 def test_desktop_sources_keep_language_refresh_hooks():
     settings = (ROOT / "src" / "ui" / "settings_page.py").read_text(encoding="utf-8")
     main_window = (ROOT / "src" / "ui" / "main_window.py").read_text(encoding="utf-8")
@@ -250,6 +262,65 @@ def test_topics_page_exposes_next_version_topic_schema(tmp_path):
         assert topic.social_enabled is True
         assert topic.min_confidence_score == 0.7
         assert topic.report_include_user_action is False
+        """)
+    result = _run_qt_script(script)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_topics_page_has_operational_filtering_and_preserves_selection_on_save(tmp_path):
+    script = textwrap.dedent(f"""
+        import os
+        from pathlib import Path
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication
+
+        from src.config import load_config, save_config
+        from src.models import AppConfig, TopicConfig
+        from src.ui.topics_page import TopicsPage
+
+        runtime_dir = Path({str(tmp_path)!r})
+        app = QApplication.instance() or QApplication([])
+        config_path = runtime_dir / "config.yaml"
+        save_config(
+            AppConfig(
+                topics=[
+                    TopicConfig(name="Policy Watch", enabled=True, prompt="Track policy.", keywords=["policy"]),
+                    TopicConfig(name="Chip Watch", enabled=False, prompt="Track chips.", keywords=["chip"]),
+                ]
+            ),
+            config_path,
+        )
+
+        page = TopicsPage(config_path)
+        assert app is not None
+        assert page.topic_search.placeholderText()
+        assert page.topic_list.count() == 2
+        assert "2" in page.topic_list_summary.text()
+
+        page.enabled_filter.setChecked(True)
+        app.processEvents()
+        assert page.topic_list.count() == 1
+        assert "Policy Watch" in page.topic_list.item(0).text()
+
+        page.enabled_filter.setChecked(False)
+        page.topic_search.setText("chip")
+        app.processEvents()
+        assert page.topic_list.count() == 1
+        assert "Chip Watch" in page.topic_list.item(0).text()
+
+        page.topic_list.setCurrentRow(0)
+        page.name.setText("Chip Watch Updated")
+        assert page._dirty is True
+        assert page._save_current(silent=True) is True
+
+        saved = load_config(config_path)
+        assert saved.topics[1].name == "Chip Watch Updated"
+        assert page.current_index == 1
+        assert page.topic_list.currentItem().data(Qt.UserRole) == 1
+        assert page._dirty is False
         """)
     result = _run_qt_script(script)
     assert result.returncode == 0, result.stderr + result.stdout
